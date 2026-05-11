@@ -21,6 +21,10 @@ sqlite3 cureid.db           # query directly
 - `comorbidities_after` — conditions developed post-disease (e.g., ME/CFS after Long COVID)
 - `extra_fields` — vaccine status, symptom duration, EHR labs, free-text notes
 
+## Drug Name Normalization
+
+Mapping table `drug_name_map` consolidates duplicate drug names without modifying raw data. View `v_drug_outcomes` applies it. See `python normalize_drugs.py --help`.
+
 ## Visualization
 
 Open `drug_outcomes_viz.html` in a browser — self-contained stacked bar chart of drug→outcome data. Sort by % positive, % significant, % resolved, or % worsened. Hover for details. Adjust minimum report threshold with the slider.
