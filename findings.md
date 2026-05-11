@@ -66,6 +66,7 @@
 | Mild improvement | 658 | 19% |
 | Complete resolution | 240 | 7% |
 | **Total positive** | **2,755** | **79%** |
+
 | Unchanged | 458 | 13% |
 | Significant worsening | 49 | 1.4% |
 | Moderate worsening | 44 | 1.3% |
@@ -264,6 +265,7 @@ Two complementary approaches to rank drugs per symptom:
 Baseline: 300 reports, 87% improved, 32% significant+resolved
 
 **Co-occurrence lift leaders** (min 10 reports):
+
 | Drug | N | Rate | Lift | Attr Sig% |
 |------|---|------|------|-----------|
 | Fexofenadine | 25 | 100% | +17% | 17% |
@@ -276,6 +278,7 @@ Baseline: 300 reports, 87% improved, 32% significant+resolved
 | Paxlovid | 16 | 94% | +9% | 75% |
 
 **Attributed significant+resolved leaders** (min 5 attributed):
+
 | Drug | N | Sig% | Lift |
 |------|---|------|------|
 | Paxlovid | 8 | 75% | +9% |
@@ -290,6 +293,7 @@ Baseline: 300 reports, 87% improved, 32% significant+resolved
 Baseline: 367 reports, 79% improved, 33% significant+resolved
 
 **Co-occurrence lift leaders:**
+
 | Drug | N | Rate | Lift | Attr Sig% |
 |------|---|------|------|-----------|
 | Nattokinase + Serrapeptase | 14 | 100% | +12% | 25% |
@@ -300,6 +304,7 @@ Baseline: 367 reports, 79% improved, 33% significant+resolved
 | Modafinil | 15 | 93% | +5% | 58% |
 
 **Attributed significant+resolved leaders:**
+
 | Drug | N | Sig% | Lift |
 |------|---|------|------|
 | Cetirizine | 6 | 67% | +6% |
@@ -314,6 +319,7 @@ Baseline: 367 reports, 79% improved, 33% significant+resolved
 Baseline: 228 reports, 77% improved, 30% significant+resolved
 
 **Co-occurrence lift leaders:**
+
 | Drug | N | Rate | Lift | Attr Sig% |
 |------|---|------|------|-----------|
 | Metoprolol | 25 | 100% | +7% | 60% |
@@ -322,6 +328,7 @@ Baseline: 228 reports, 77% improved, 30% significant+resolved
 | Pyridostigmine | 19 | 95% | +0% | 17% |
 
 **Attributed significant+resolved leaders:**
+
 | Drug | N | Sig% | Lift |
 |------|---|------|------|
 | Metoprolol | 20 | 60% | +7% |
@@ -335,6 +342,7 @@ Baseline: 228 reports, 77% improved, 30% significant+resolved
 Baseline: 343 reports, 84% improved, 25% significant+resolved
 
 **Co-occurrence lift leaders:**
+
 | Drug | N | Rate | Lift |
 |------|---|------|------|
 | Vitamin C | 18 | 100% | +15% |
