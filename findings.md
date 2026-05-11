@@ -66,7 +66,7 @@
 | Mild improvement | 658 | 19% |
 | Complete resolution | 240 | 7% |
 | **Total positive** | **2,755** | **79%** |
-
+| | | |
 | Unchanged | 458 | 13% |
 | Significant worsening | 49 | 1.4% |
 | Moderate worsening | 44 | 1.3% |
@@ -216,29 +216,16 @@ Post-Exertional Malaise is the hallmark Long COVID symptom. Top drugs with repor
 
 Based on the top drugs, clear mechanistic clusters emerge:
 
-### Mast Cell / Antihistamine
-Famotidine, cetirizine, fexofenadine, ketotifen, hydroxyzine, cromolyn, loratadine, montelukast, quercetin
-
-### Autonomic / Heart Rate
-Propranolol, ivabradine, metoprolol, bisoprolol, midodrine, pyridostigmine, fludrocortisone
-
-### Anticoagulant / Vascular
-Aspirin, nattokinase, lumbrokinase, apixaban (Eliquis), clopidogrel, HELP apheresis
-
-### Immune Modulation
-LDN, prednisolone, IVIG, maraviroc
-
-### Antiviral
-Paxlovid (nirmatrelvir-ritonavir), valacyclovir
-
-### Mitochondrial / Metabolic
-CoQ10, NAC, magnesium, oxaloacetate, metformin, alpha-ketoglutarate
-
-### Neurological / Pain
-Gabapentin, amitriptyline, guanfacine, nicotine patch
-
-### Other
-Melatonin, CBD/THC, probiotics, vitamin D3, vitamin B12, turmeric
+| Mechanism | Drugs |
+|-----------|-------|
+| Mast Cell / Antihistamine | Famotidine, cetirizine, fexofenadine, ketotifen, hydroxyzine, cromolyn, loratadine, montelukast, quercetin |
+| Autonomic / Heart Rate | Propranolol, ivabradine, metoprolol, bisoprolol, midodrine, pyridostigmine, fludrocortisone |
+| Anticoagulant / Vascular | Aspirin, nattokinase, lumbrokinase, apixaban (Eliquis), clopidogrel, HELP apheresis |
+| Immune Modulation | LDN, prednisolone, IVIG, maraviroc |
+| Antiviral | Paxlovid (nirmatrelvir-ritonavir), valacyclovir |
+| Mitochondrial / Metabolic | CoQ10, NAC, magnesium, oxaloacetate, metformin, alpha-ketoglutarate |
+| Neurological / Pain | Gabapentin, amitriptyline, guanfacine, nicotine patch |
+| Other | Melatonin, CBD/THC, probiotics, vitamin D3, vitamin B12, turmeric |
 
 ---
 
@@ -254,6 +241,8 @@ Melatonin, CBD/THC, probiotics, vitamin D3, vitamin B12, turmeric
 
 ---
 
+---
+
 ## Per-Symptom Drug Efficacy (Dual-Lens Analysis)
 
 Two complementary approaches to rank drugs per symptom:
@@ -263,21 +252,21 @@ Two complementary approaches to rank drugs per symptom:
 
 ### Definitions
 
-- **Baseline**: the improvement rate for a symptom across *all* reports, regardless of drug. Shown in bold at the top of each table for comparison.
+- **Baseline row**: the overall improvement rate for this symptom across *all* reports, shown as a reference point. Note: lifts are not computed directly against this row (see below).
 - **Co-N**: number of reports where the patient was taking this drug and had an outcome recorded for this symptom (regardless of attribution).
 - **Sig%**: % of co-occurring reports where the outcome was "Significant improvement" or "Complete resolution."
-- **Sig Lift**: difference between this drug's Sig% and the baseline Sig%. Positive = more significant outcomes than average.
+- **Sig Lift**: difference between this drug's Sig% and the Sig% of reports *not* taking this drug (leave-one-out). This isolates the drug's association from its own influence on the overall rate — important for high-volume drugs like LDN that are in 60%+ of reports. For low-volume drugs, this is nearly identical to comparing against the baseline row.
 - **Impr%**: % of co-occurring reports where the symptom improved (any level: mild through complete resolution).
-- **Impr Lift**: difference between this drug's Impr% and the Impr% for reports *not* taking this drug. Positive = better than average; negative = worse (often indicates confounding by severity).
+- **Impr Lift**: same leave-one-out method as Sig Lift, applied to overall improvement rate.
 - **Attr N**: number of times patients explicitly attributed this drug to this symptom's outcome.
 - **Attr Sig%**: % of attributed entries reporting significant improvement or complete resolution.
-- **Attr Sig Lift**: difference between Attr Sig% and the baseline attributed Sig%.
+- **Attr Sig Lift**: difference between Attr Sig% and the pooled attributed Sig% across all drugs for this symptom (global average, not leave-one-out — the attributed pool is smaller so leave-one-out would be noisy).
 - **Attr Impr%**: % of attributed entries reporting any improvement.
-- **Attr Impr Lift**: difference between Attr Impr% and the baseline attributed Impr%.
+- **Attr Impr Lift**: same global-average method as Attr Sig Lift, applied to attributed improvement rate.
 
 ### How to read the tables
 
-A drug is most convincing when it scores high on *both* Sig Lift (more significant outcomes than average) and Impr Lift (associated with better-than-average improvement). High Impr Lift with low Sig% means broad mild benefit. High Sig% with negative Impr Lift means the drug works but is given to harder cases. The co-occurrence table is sorted by Sig Lift; the attributed table by Attr Sig Lift.
+A drug is most convincing when it scores high on *both* Sig Lift (more significant outcomes than average) and Impr Lift (associated with better-than-average improvement). High Impr Lift with low Sig% means broad mild benefit. High Sig% with negative Impr Lift suggests confounding by indication — the drug may be prescribed to harder cases, making its overall improvement rate look worse even though some patients get strong results. The co-occurrence table is sorted by Sig Lift; the attributed table by Attr Sig Lift.
 
 ### PEM (Post-Exertional Malaise)
 

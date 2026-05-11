@@ -25,6 +25,19 @@ sqlite3 cureid.db           # query directly
 
 Mapping table `drug_name_map` consolidates duplicate drug names without modifying raw data. View `v_drug_outcomes` applies it. See `python normalize_drugs.py --help`.
 
+## Per-Symptom Efficacy Analysis
+
+```bash
+python symptom_drug_efficacy.py            # print tables to terminal
+python symptom_drug_efficacy.py --markdown  # output markdown tables for findings.md
+```
+
+Dual-lens approach: co-occurrence lift (leave-one-out) + patient-attributed outcomes. Results in `symptom_drug_efficacy.csv`.
+
+## Findings
+
+See `findings.md` for the full write-up: demographics, top symptoms, drug efficacy rankings, per-symptom tables, mechanism groupings, and cross-symptom patterns.
+
 ## Visualization
 
 Open `drug_outcomes_viz.html` in a browser — self-contained stacked bar chart of drug→outcome data. Sort by % positive, % significant, % resolved, or % worsened. Hover for details. Adjust minimum report threshold with the slider.

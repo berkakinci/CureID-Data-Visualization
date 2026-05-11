@@ -344,8 +344,11 @@ def export_results(db_path, output_path):
         writer = csv.writer(f)
         writer.writerow([
             'symptom', 'symptom_short', 'drug', 'baseline_reports',
-            'baseline_improve_rate', 'cooccur_n', 'cooccur_rate', 'cooccur_lift',
-            'attr_n', 'attr_rate', 'attr_sig_rate', 'attr_worsened'
+            'baseline_impr_rate', 'baseline_sig_rate',
+            'cooccur_n', 'cooccur_impr_rate', 'cooccur_impr_lift',
+            'cooccur_sig_rate', 'cooccur_sig_lift',
+            'attr_n', 'attr_impr_rate', 'attr_impr_lift',
+            'attr_sig_rate', 'attr_sig_lift', 'attr_worsened'
         ])
 
         for symptom_name, cnt in symptoms:
@@ -355,15 +358,20 @@ def export_results(db_path, output_path):
             _, baseline, results = analyze_symptom(cur, symptom_name, min_drug_reports=3)
             if not baseline:
                 continue
-            bl_rate = baseline["improved"] / baseline["total"] if baseline["total"] > 0 else 0
+            bl_impr = baseline["improved"] / baseline["total"] if baseline["total"] > 0 else 0
+            bl_sig = baseline["sig_improved"] / baseline["total"] if baseline["total"] > 0 else 0
 
             for r in results:
                 writer.writerow([
                     symptom_name, short, r["drug"], baseline["total"],
-                    f"{bl_rate:.3f}", r["cooccur_n"], f"{r['cooccur_rate']:.3f}",
-                    f"{r['cooccur_lift']:.3f}", r["attr_n"],
-                    f"{r['attr_rate']:.3f}" if r["attr_rate"] is not None else "",
-                    f"{r['attr_sig']/r['attr_n']:.3f}" if r["attr_n"] else "",
+                    f"{bl_impr:.3f}", f"{bl_sig:.3f}",
+                    r["cooccur_n"], f"{r['cooccur_rate']:.3f}", f"{r['cooccur_lift']:.3f}",
+                    f"{r['cooccur_sig_rate']:.3f}", f"{r['cooccur_sig_lift']:.3f}",
+                    r["attr_n"],
+                    f"{r['attr_impr_rate']:.3f}" if r.get("attr_impr_rate") is not None else "",
+                    f"{r['attr_impr_lift']:.3f}" if r.get("attr_impr_lift") is not None else "",
+                    f"{r['attr_sig_rate']:.3f}" if r.get("attr_sig_rate") is not None else "",
+                    f"{r['attr_sig_lift']:.3f}" if r.get("attr_sig_lift") is not None else "",
                     r["attr_worsened"] if r["attr_n"] else ""
                 ])
 
