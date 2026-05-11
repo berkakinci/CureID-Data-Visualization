@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CureID Long COVID — Drug Outcome Visualization</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 5px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 20px; font-size: 14px; }
+  .controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .controls label { font-size: 13px; color: #aaa; }
+  .controls select, .controls input { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 5px 10px; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 120px; }
+  .legend { display: flex; gap: 15px; justify-content: center; margin-bottom: 15px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 2px; }
+  #chart-container { width: 100%; overflow-x: auto; }
+  #chart { min-width: 900px; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 2px; }
+  .bar-label { width: 280px; min-width: 280px; text-align: right; padding-right: 10px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-stack { display: flex; height: 22px; flex: 1; position: relative; cursor: pointer; background: #2a2a3a; border-radius: 2px; overflow: hidden; }
+  .bar-stack:hover { opacity: 0.85; }
+  .bar-segment { height: 100%; transition: width 0.3s; }
+  .bar-count { position: absolute; right: -40px; font-size: 10px; color: #888; line-height: 22px; width: 36px; text-align: left; }
+  .tooltip { position: fixed; background: #2a2a4a; border: 1px solid #555; padding: 10px 14px; border-radius: 6px; font-size: 12px; pointer-events: none; display: none; z-index: 100; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  .tooltip .drug-name { font-weight: bold; margin-bottom: 6px; color: #fff; }
+  .tooltip .outcome-line { display: flex; justify-content: space-between; gap: 15px; margin: 2px 0; }
+  .tooltip .outcome-label { display: flex; align-items: center; gap: 5px; }
+  .tooltip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .section-header { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 5px 290px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Long COVID Drug Outcomes</h1>
+<p class="subtitle">CureID patient-reported symptom outcomes by drug (minimum 10 outcome entries)</p>
+
+<div class="controls">
+  <label>Sort by:
+    <select id="sort-select">
+      <option value="total">Total reports</option>
+      <option value="pct-positive">% Positive outcome</option>
+      <option value="pct-significant">% Significant + Resolved</option>
+      <option value="pct-resolved">% Complete Resolution</option>
+      <option value="pct-worsened">% Worsened (ascending)</option>
+      <option value="alpha">Alphabetical</option>
+    </select>
+  </label>
+  <label>Min reports:
+    <input type="range" id="min-reports" min="5" max="50" value="10">
+    <span id="min-reports-val">10</span>
+  </label>
+  <label>
+    <input type="checkbox" id="show-pct" checked> Show as %
+  </label>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#2ecc71"></div>Resolved</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Significant</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#82c91e"></div>Moderate</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f1c40f"></div>Mild</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#7f8c8d"></div>Unchanged</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Worsened</div>
+</div>
+
+<div id="chart-container">
+  <div id="chart"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const EMBEDDED_DATA = [{"drug":"Low Dose Naltrexone (LDN)","total":239,"resolved":10,"significant":72,"moderate":80,"mild":54,"unchanged":14,"worsened":6},{"drug":"Low Dose Naltrexone (LDN) (Vivitrol, ReViva, Depade, etc.)","total":119,"resolved":2,"significant":24,"moderate":31,"mild":29,"unchanged":8,"worsened":16},{"drug":"Propranolol","total":100,"resolved":0,"significant":30,"moderate":27,"mild":19,"unchanged":9,"worsened":14},{"drug":"Famotidine","total":83,"resolved":5,"significant":36,"moderate":23,"mild":7,"unchanged":12,"worsened":0},{"drug":"Aspirin","total":73,"resolved":3,"significant":19,"moderate":21,"mild":16,"unchanged":12,"worsened":0},{"drug":"Nattokinase","total":69,"resolved":3,"significant":25,"moderate":16,"mild":12,"unchanged":8,"worsened":0},{"drug":"Ketotifen","total":65,"resolved":0,"significant":35,"moderate":15,"mild":12,"unchanged":2,"worsened":0},{"drug":"Prednisolone","total":48,"resolved":7,"significant":30,"moderate":5,"mild":1,"unchanged":2,"worsened":1},{"drug":"Melatonin","total":43,"resolved":2,"significant":11,"moderate":12,"mild":8,"unchanged":9,"worsened":1},{"drug":"Gabapentin","total":42,"resolved":0,"significant":12,"moderate":7,"mild":3,"unchanged":14,"worsened":4},{"drug":"Maraviroc","total":41,"resolved":2,"significant":15,"moderate":8,"mild":7,"unchanged":5,"worsened":3},{"drug":"Metoprolol","total":40,"resolved":2,"significant":22,"moderate":9,"mild":3,"unchanged":1,"worsened":3},{"drug":"Metformin","total":34,"resolved":1,"significant":5,"moderate":6,"mild":10,"unchanged":5,"worsened":3},{"drug":"Ivabradine","total":34,"resolved":2,"significant":10,"moderate":10,"mild":7,"unchanged":4,"worsened":0},{"drug":"Cetirizine (Zyrtec)","total":34,"resolved":3,"significant":18,"moderate":7,"mild":5,"unchanged":1,"worsened":0},{"drug":"Bisoprolol","total":33,"resolved":2,"significant":17,"moderate":9,"mild":2,"unchanged":2,"worsened":1},{"drug":"Magnesium Glycinate","total":30,"resolved":0,"significant":16,"moderate":7,"mild":5,"unchanged":0,"worsened":0},{"drug":"Ivabradine (Corlanor, Procoralan)","total":30,"resolved":1,"significant":6,"moderate":15,"mild":4,"unchanged":4,"worsened":0},{"drug":"Amitriptyline","total":30,"resolved":1,"significant":10,"moderate":6,"mild":6,"unchanged":2,"worsened":4},{"drug":"Guanfacine","total":29,"resolved":1,"significant":4,"moderate":9,"mild":6,"unchanged":7,"worsened":1},{"drug":"Atorvastatin","total":29,"resolved":1,"significant":10,"moderate":2,"mild":4,"unchanged":9,"worsened":3},{"drug":"Vitamin C","total":28,"resolved":0,"significant":13,"moderate":2,"mild":3,"unchanged":6,"worsened":0},{"drug":"Mestinon","total":28,"resolved":4,"significant":7,"moderate":9,"mild":5,"unchanged":0,"worsened":2},{"drug":"Vitamin B12","total":27,"resolved":1,"significant":8,"moderate":5,"mild":5,"unchanged":8,"worsened":0},{"drug":"Midodrine","total":27,"resolved":0,"significant":4,"moderate":16,"mild":6,"unchanged":1,"worsened":0},{"drug":"Lumbrokinase","total":26,"resolved":1,"significant":8,"moderate":3,"mild":3,"unchanged":10,"worsened":0},{"drug":"Ivabradine 5 Mg Oral Tablet [Corlanor]","total":26,"resolved":0,"significant":10,"moderate":10,"mild":5,"unchanged":0,"worsened":0},{"drug":"Hydroxyzine","total":25,"resolved":0,"significant":18,"moderate":3,"mild":3,"unchanged":0,"worsened":0},{"drug":"Fexofenadine Hydrochloride 180 Mg Oral Tablet [Allegra]","total":25,"resolved":3,"significant":17,"moderate":2,"mild":1,"unchanged":2,"worsened":0},{"drug":"Fexofenadine","total":25,"resolved":3,"significant":9,"moderate":8,"mild":3,"unchanged":1,"worsened":0},{"drug":"CBD","total":25,"resolved":0,"significant":16,"moderate":7,"mild":2,"unchanged":0,"worsened":0},{"drug":"N-Acetylcysteine\u00a0(NAC)","total":24,"resolved":0,"significant":5,"moderate":6,"mild":2,"unchanged":6,"worsened":0},{"drug":"Quercetin","total":23,"resolved":1,"significant":5,"moderate":5,"mild":4,"unchanged":5,"worsened":0},{"drug":"Nicotine","total":22,"resolved":0,"significant":6,"moderate":10,"mild":2,"unchanged":4,"worsened":0},{"drug":"Zyrtec","total":21,"resolved":1,"significant":7,"moderate":6,"mild":3,"unchanged":3,"worsened":0},{"drug":"Pyridostigmine","total":21,"resolved":0,"significant":5,"moderate":8,"mild":5,"unchanged":1,"worsened":1},{"drug":"Nicotine patch (Habitrol, Nicoderm CQ, Nicotrol, etc.)","total":21,"resolved":1,"significant":4,"moderate":11,"mild":3,"unchanged":1,"worsened":1},{"drug":"NAC","total":21,"resolved":1,"significant":11,"moderate":8,"mild":0,"unchanged":1,"worsened":0},{"drug":"Ivermectin","total":21,"resolved":1,"significant":7,"moderate":2,"mild":1,"unchanged":0,"worsened":1},{"drug":"Eliquis","total":21,"resolved":0,"significant":7,"moderate":10,"mild":0,"unchanged":0,"worsened":0},{"drug":"Amantadine","total":21,"resolved":7,"significant":6,"moderate":4,"mild":1,"unchanged":3,"worsened":0},{"drug":"Pfizer COVID-19 Vaccine","total":20,"resolved":17,"significant":1,"moderate":0,"mild":0,"unchanged":0,"worsened":1},{"drug":"Magnesium","total":20,"resolved":1,"significant":5,"moderate":5,"mild":4,"unchanged":4,"worsened":1},{"drug":"Loratadine","total":20,"resolved":0,"significant":2,"moderate":5,"mild":6,"unchanged":7,"worsened":0},{"drug":"Iron","total":20,"resolved":5,"significant":4,"moderate":7,"mild":4,"unchanged":0,"worsened":0},{"drug":"Fludrocortisone","total":20,"resolved":0,"significant":2,"moderate":6,"mild":3,"unchanged":8,"worsened":1},{"drug":"Tetrahydrocannabinol (THC)","total":19,"resolved":0,"significant":12,"moderate":6,"mild":1,"unchanged":0,"worsened":0},{"drug":"Nirmatrelvir-Ritonavir","total":19,"resolved":18,"significant":0,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Diphtheria, Tetanus Toxoids And Acellular Pertussis Vaccine","total":19,"resolved":18,"significant":0,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Cromolyn Sodium","total":19,"resolved":1,"significant":6,"moderate":7,"mild":5,"unchanged":0,"worsened":0},{"drug":"Nac","total":18,"resolved":0,"significant":4,"moderate":8,"mild":4,"unchanged":2,"worsened":0},{"drug":"Moderna COVID-19 vaccine","total":18,"resolved":17,"significant":0,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"ivabradine","total":17,"resolved":1,"significant":6,"moderate":7,"mild":1,"unchanged":1,"worsened":1},{"drug":"Tirzepatide","total":17,"resolved":0,"significant":4,"moderate":2,"mild":3,"unchanged":4,"worsened":0},{"drug":"Nortriptyline","total":17,"resolved":1,"significant":4,"moderate":7,"mild":1,"unchanged":2,"worsened":2},{"drug":"Methylene Blue","total":17,"resolved":1,"significant":5,"moderate":4,"mild":3,"unchanged":4,"worsened":0},{"drug":"Coq10","total":17,"resolved":0,"significant":0,"moderate":4,"mild":8,"unchanged":4,"worsened":0},{"drug":"Pyridostigmine (Mestinon)","total":16,"resolved":0,"significant":3,"moderate":7,"mild":6,"unchanged":0,"worsened":0},{"drug":"Nattokinase-serrapeptase","total":16,"resolved":2,"significant":3,"moderate":5,"mild":4,"unchanged":0,"worsened":0},{"drug":"Hyperbaric Oxygen Therapy (HBOT)","total":16,"resolved":0,"significant":8,"moderate":6,"mild":1,"unchanged":1,"worsened":0},{"drug":"Guanfacine Er","total":16,"resolved":2,"significant":8,"moderate":4,"mild":2,"unchanged":0,"worsened":0},{"drug":"Fexofenadine (Allegra, Telfast)","total":16,"resolved":2,"significant":8,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Duloxetine","total":16,"resolved":0,"significant":1,"moderate":5,"mild":3,"unchanged":6,"worsened":1},{"drug":"Corlanor","total":16,"resolved":2,"significant":6,"moderate":7,"mild":1,"unchanged":0,"worsened":0},{"drug":"Bupropion Hcl","total":16,"resolved":0,"significant":3,"moderate":3,"mild":3,"unchanged":1,"worsened":6},{"drug":"Benadryl","total":16,"resolved":0,"significant":4,"moderate":5,"mild":4,"unchanged":3,"worsened":0},{"drug":"Nattokinase-Serrapeptase","total":15,"resolved":0,"significant":4,"moderate":7,"mild":3,"unchanged":0,"worsened":1},{"drug":"Metoprolol (Lopressor, Toprol XL, Dutoprol, Betaloc, etc.)","total":15,"resolved":1,"significant":5,"moderate":5,"mild":4,"unchanged":0,"worsened":0},{"drug":"Glutathione","total":15,"resolved":0,"significant":2,"moderate":2,"mild":3,"unchanged":6,"worsened":2},{"drug":"Emtricitabine 200 Mg / Tenofovir Disoproxil Fumarate 300 Mg Oral Tablet","total":15,"resolved":0,"significant":2,"moderate":3,"mild":5,"unchanged":5,"worsened":0},{"drug":"Coenzyme Q10 (CoQ10)","total":15,"resolved":0,"significant":0,"moderate":3,"mild":6,"unchanged":5,"worsened":0},{"drug":"Cetirizine","total":15,"resolved":1,"significant":4,"moderate":6,"mild":2,"unchanged":0,"worsened":1},{"drug":"Probiotics ","total":14,"resolved":0,"significant":3,"moderate":3,"mild":5,"unchanged":0,"worsened":2},{"drug":"Pregabalin","total":14,"resolved":0,"significant":3,"moderate":2,"mild":1,"unchanged":6,"worsened":2},{"drug":"Paxlovid","total":14,"resolved":3,"significant":6,"moderate":0,"mild":0,"unchanged":5,"worsened":0},{"drug":"Ondansetron (Zofran, Zuplenz)","total":14,"resolved":0,"significant":2,"moderate":1,"mild":5,"unchanged":5,"worsened":0},{"drug":"Nirmatrelvir-Ritonavir (Paxlovid)","total":14,"resolved":2,"significant":5,"moderate":3,"mild":1,"unchanged":2,"worsened":0},{"drug":"Montelukast","total":14,"resolved":0,"significant":5,"moderate":3,"mild":4,"unchanged":2,"worsened":0},{"drug":"Modafinil","total":14,"resolved":0,"significant":4,"moderate":6,"mild":3,"unchanged":1,"worsened":0},{"drug":"Fluvoxamine","total":14,"resolved":0,"significant":2,"moderate":6,"mild":3,"unchanged":1,"worsened":2},{"drug":"Clopidogrel","total":14,"resolved":0,"significant":5,"moderate":7,"mild":0,"unchanged":1,"worsened":0},{"drug":"Apixaban (Eliquis)","total":14,"resolved":0,"significant":0,"moderate":3,"mild":3,"unchanged":8,"worsened":0},{"drug":"Vitamin D3","total":13,"resolved":2,"significant":3,"moderate":2,"mild":3,"unchanged":1,"worsened":0},{"drug":"Turmeric (Curcumin, Curcuma Longa, Wild Curcuma, etc.)","total":13,"resolved":0,"significant":6,"moderate":3,"mild":1,"unchanged":3,"worsened":0},{"drug":"Tollovid","total":13,"resolved":1,"significant":6,"moderate":3,"mild":0,"unchanged":2,"worsened":0},{"drug":"Propanolol","total":13,"resolved":1,"significant":6,"moderate":2,"mild":4,"unchanged":0,"worsened":0},{"drug":"Prednisone","total":13,"resolved":2,"significant":7,"moderate":1,"mild":2,"unchanged":1,"worsened":0},{"drug":"Naltrexone","total":13,"resolved":0,"significant":3,"moderate":4,"mild":2,"unchanged":3,"worsened":1},{"drug":"Low Dose Aripiprazole (Abilify)","total":13,"resolved":1,"significant":3,"moderate":6,"mild":2,"unchanged":1,"worsened":0},{"drug":"Fexofenadine Hydrochloride 180 Mg Oral Tablet","total":13,"resolved":0,"significant":11,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Albuterol","total":13,"resolved":2,"significant":3,"moderate":4,"mild":0,"unchanged":2,"worsened":2},{"drug":"Vitamin D","total":12,"resolved":0,"significant":0,"moderate":1,"mild":3,"unchanged":8,"worsened":0},{"drug":"Pyridostigmine Bromide","total":12,"resolved":3,"significant":3,"moderate":3,"mild":0,"unchanged":3,"worsened":0},{"drug":"Probiotic","total":12,"resolved":0,"significant":4,"moderate":3,"mild":4,"unchanged":0,"worsened":0},{"drug":"Niacin","total":12,"resolved":3,"significant":1,"moderate":1,"mild":6,"unchanged":1,"worsened":0},{"drug":"NAD+","total":12,"resolved":0,"significant":10,"moderate":1,"mild":0,"unchanged":1,"worsened":0},{"drug":"Levocetirizine (Xyzal)","total":12,"resolved":3,"significant":5,"moderate":1,"mild":0,"unchanged":2,"worsened":0},{"drug":"HELP Apheresis","total":12,"resolved":1,"significant":6,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Diltiazem","total":12,"resolved":0,"significant":4,"moderate":5,"mild":2,"unchanged":0,"worsened":0},{"drug":"Colchicine","total":12,"resolved":0,"significant":5,"moderate":4,"mild":2,"unchanged":1,"worsened":0},{"drug":"Clopidogrel 75 Mg Oral Tablet","total":12,"resolved":2,"significant":8,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"midodrine","total":11,"resolved":0,"significant":1,"moderate":5,"mild":3,"unchanged":0,"worsened":1},{"drug":"Valacyclovir","total":11,"resolved":0,"significant":7,"moderate":1,"mild":1,"unchanged":2,"worsened":0},{"drug":"Valaciclovir","total":11,"resolved":0,"significant":2,"moderate":2,"mild":2,"unchanged":5,"worsened":0},{"drug":"Ubiquinol","total":11,"resolved":0,"significant":5,"moderate":2,"mild":3,"unchanged":1,"worsened":0},{"drug":"Tylenol","total":11,"resolved":0,"significant":2,"moderate":2,"mild":1,"unchanged":6,"worsened":0},{"drug":"Omeprazole","total":11,"resolved":1,"significant":1,"moderate":7,"mild":2,"unchanged":0,"worsened":0},{"drug":"N-Acetyl Cysteine","total":11,"resolved":0,"significant":2,"moderate":3,"mild":3,"unchanged":2,"worsened":0},{"drug":"Magnesium ","total":11,"resolved":0,"significant":3,"moderate":0,"mild":3,"unchanged":5,"worsened":0},{"drug":"Low Dose Abilify","total":11,"resolved":3,"significant":3,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Doxycycline","total":11,"resolved":1,"significant":3,"moderate":1,"mild":1,"unchanged":4,"worsened":1},{"drug":"Apixaban 5 Mg Oral Tablet [Eliquis]","total":11,"resolved":2,"significant":6,"moderate":3,"mild":0,"unchanged":0,"worsened":0},{"drug":"Taurine","total":10,"resolved":0,"significant":2,"moderate":2,"mild":6,"unchanged":0,"worsened":0},{"drug":"Pepcid Ac","total":10,"resolved":1,"significant":6,"moderate":2,"mild":1,"unchanged":0,"worsened":0},{"drug":"Pectin","total":10,"resolved":0,"significant":8,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Metoprolol Succinate Er","total":10,"resolved":0,"significant":3,"moderate":4,"mild":3,"unchanged":0,"worsened":0},{"drug":"Magnesium threonate","total":10,"resolved":0,"significant":1,"moderate":0,"mild":1,"unchanged":4,"worsened":0},{"drug":"Ivabradine 5 Mg Oral Tablet","total":10,"resolved":0,"significant":6,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Famotidine 40 Mg Oral Tablet [Pepcid]","total":10,"resolved":2,"significant":2,"moderate":2,"mild":4,"unchanged":0,"worsened":0},{"drug":"Evusheld","total":10,"resolved":0,"significant":5,"moderate":3,"mild":0,"unchanged":2,"worsened":0},{"drug":"Bupropion (Wellbutrin, Zyban, Aplenzin, etc.)","total":10,"resolved":0,"significant":4,"moderate":1,"mild":0,"unchanged":1,"worsened":4},{"drug":"Atenolol (Tenormin)","total":10,"resolved":0,"significant":0,"moderate":0,"mild":6,"unchanged":4,"worsened":0},{"drug":"famotidine","total":9,"resolved":0,"significant":5,"moderate":3,"mild":0,"unchanged":0,"worsened":0},{"drug":"Serrapeptase","total":9,"resolved":0,"significant":1,"moderate":2,"mild":2,"unchanged":4,"worsened":0},{"drug":"Rifampin","total":9,"resolved":0,"significant":4,"moderate":0,"mild":1,"unchanged":4,"worsened":0},{"drug":"Rapamycin","total":9,"resolved":0,"significant":4,"moderate":0,"mild":0,"unchanged":5,"worsened":0},{"drug":"Propranolol Hydrochloride 10 Mg Oral Tablet [Cardinol]","total":9,"resolved":0,"significant":0,"moderate":4,"mild":5,"unchanged":0,"worsened":0},{"drug":"Oxaloacetate","total":9,"resolved":1,"significant":4,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"Ketotifen (Zaditor, Alaway, etc.)","total":9,"resolved":0,"significant":4,"moderate":2,"mild":1,"unchanged":0,"worsened":1},{"drug":"Electrolytes","total":9,"resolved":1,"significant":0,"moderate":5,"mild":3,"unchanged":0,"worsened":0},{"drug":"EECP","total":9,"resolved":0,"significant":8,"moderate":1,"mild":0,"unchanged":0,"worsened":0},{"drug":"Cromolyn (Cromolyn Sodium, Gastrocrom)","total":9,"resolved":0,"significant":0,"moderate":1,"mild":0,"unchanged":7,"worsened":0},{"drug":"Clarithromycin (Biaxin, Klaricid, Xetinin, etc.)","total":9,"resolved":0,"significant":4,"moderate":0,"mild":1,"unchanged":4,"worsened":0},{"drug":"Cetirizine Hcl","total":9,"resolved":1,"significant":4,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"Botox","total":9,"resolved":0,"significant":6,"moderate":1,"mild":1,"unchanged":0,"worsened":1},{"drug":"Baclofen (Lioresal, Balgifen, Fleqsuvy, etc.)","total":9,"resolved":0,"significant":4,"moderate":0,"mild":0,"unchanged":5,"worsened":0},{"drug":"Aripiprazole","total":9,"resolved":2,"significant":4,"moderate":3,"mild":0,"unchanged":0,"worsened":0},{"drug":"Allegra","total":9,"resolved":0,"significant":5,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"vitassium","total":8,"resolved":0,"significant":0,"moderate":4,"mild":4,"unchanged":0,"worsened":0},{"drug":"Vitamin B1","total":8,"resolved":0,"significant":0,"moderate":0,"mild":2,"unchanged":6,"worsened":0},{"drug":"Trazodone","total":8,"resolved":0,"significant":4,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Sodium","total":8,"resolved":0,"significant":1,"moderate":3,"mild":4,"unchanged":0,"worsened":0},{"drug":"Sertraline","total":8,"resolved":0,"significant":2,"moderate":2,"mild":2,"unchanged":1,"worsened":1},{"drug":"Resveratrol","total":8,"resolved":0,"significant":0,"moderate":2,"mild":0,"unchanged":6,"worsened":0},{"drug":"RespireAid (NRICM101)","total":8,"resolved":2,"significant":6,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Midodrine Hydrochloride 5 Mg Oral Tablet","total":8,"resolved":0,"significant":0,"moderate":6,"mild":0,"unchanged":2,"worsened":0},{"drug":"Levothyroxine","total":8,"resolved":1,"significant":4,"moderate":1,"mild":2,"unchanged":0,"worsened":0},{"drug":"LMNT electrolytes","total":8,"resolved":0,"significant":2,"moderate":4,"mild":2,"unchanged":0,"worsened":0},{"drug":"Alpha Lipoic Acid","total":8,"resolved":0,"significant":0,"moderate":3,"mild":5,"unchanged":0,"worsened":0},{"drug":"Acetyl-L-Carnitine","total":8,"resolved":0,"significant":1,"moderate":3,"mild":4,"unchanged":0,"worsened":0},{"drug":"nicotinamide adenine dinucleotide","total":7,"resolved":0,"significant":2,"moderate":2,"mild":1,"unchanged":2,"worsened":0},{"drug":"beta blocker","total":7,"resolved":2,"significant":2,"moderate":0,"mild":1,"unchanged":0,"worsened":2},{"drug":"Sertraline 100 Mg Oral Tablet","total":7,"resolved":0,"significant":4,"moderate":1,"mild":1,"unchanged":1,"worsened":0},{"drug":"Riboflavin","total":7,"resolved":0,"significant":1,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Propranolol Er","total":7,"resolved":1,"significant":2,"moderate":0,"mild":4,"unchanged":0,"worsened":0},{"drug":"Omega-3 Fatty Acids","total":7,"resolved":0,"significant":0,"moderate":1,"mild":0,"unchanged":6,"worsened":0},{"drug":"N-Acetylcysteine","total":7,"resolved":2,"significant":1,"moderate":3,"mild":0,"unchanged":1,"worsened":0},{"drug":"Modafinil 100 Mg Oral Tablet","total":7,"resolved":3,"significant":3,"moderate":0,"mild":0,"unchanged":1,"worsened":0},{"drug":"Metoprolol Tartrate","total":7,"resolved":0,"significant":2,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Methylcobalamin","total":7,"resolved":1,"significant":4,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Maraviroc (Selzentry, Celsentri)","total":7,"resolved":0,"significant":1,"moderate":0,"mild":1,"unchanged":5,"worsened":0},{"drug":"Levothyroxine (Synthroid, Levoxyl, Euthyrox, etc.)","total":7,"resolved":0,"significant":0,"moderate":0,"mild":1,"unchanged":6,"worsened":0},{"drug":"Lemborexant (Dayvigo)","total":7,"resolved":0,"significant":1,"moderate":2,"mild":0,"unchanged":4,"worsened":0},{"drug":"Ketotifen Oral Compounded in Water Only","total":7,"resolved":2,"significant":2,"moderate":1,"mild":0,"unchanged":0,"worsened":0},{"drug":"Infrared lamp therapy","total":7,"resolved":0,"significant":3,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"Fluoxetine 40 Mg Oral Capsule [Prozac]","total":7,"resolved":0,"significant":5,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"Famotidine (Pepcid, Zantac, Fluxid, etc.) ","total":7,"resolved":0,"significant":2,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Duloxetine 30 Mg Delayed Release Oral Capsule [Cymbalta]","total":7,"resolved":0,"significant":1,"moderate":0,"mild":3,"unchanged":1,"worsened":2},{"drug":"Desloratadine","total":7,"resolved":0,"significant":2,"moderate":4,"mild":0,"unchanged":1,"worsened":0},{"drug":"Clopidogrel (Plavix)","total":7,"resolved":0,"significant":0,"moderate":3,"mild":0,"unchanged":4,"worsened":0},{"drug":"Cannabidiol (Epidiolex)","total":7,"resolved":0,"significant":1,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Budesonide: .5mg/2ml x2 daily","total":7,"resolved":0,"significant":0,"moderate":1,"mild":6,"unchanged":0,"worsened":0},{"drug":"Atenolol","total":7,"resolved":0,"significant":3,"moderate":2,"mild":1,"unchanged":1,"worsened":0},{"drug":"Amphetamine-Dextroamphetamine (Adderall, Mydayis)","total":7,"resolved":0,"significant":0,"moderate":2,"mild":2,"unchanged":1,"worsened":2},{"drug":"nicotine 7 mg patch","total":6,"resolved":1,"significant":1,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"montelukast","total":6,"resolved":3,"significant":1,"moderate":0,"mild":1,"unchanged":1,"worsened":0},{"drug":"hydrogen gas inhalation","total":6,"resolved":0,"significant":4,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"dandelion root","total":6,"resolved":0,"significant":5,"moderate":1,"mild":0,"unchanged":0,"worsened":0},{"drug":"baby aspirin","total":6,"resolved":5,"significant":0,"moderate":0,"mild":1,"unchanged":0,"worsened":0},{"drug":"atorvastatin","total":6,"resolved":6,"significant":0,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Vyvanse","total":6,"resolved":0,"significant":0,"moderate":4,"mild":2,"unchanged":0,"worsened":0},{"drug":"Vitassium","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Vericiguat","total":6,"resolved":0,"significant":1,"moderate":1,"mild":2,"unchanged":2,"worsened":0},{"drug":"Valacyclovir (Valtrex)","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Tizanidine","total":6,"resolved":0,"significant":1,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Thc","total":6,"resolved":1,"significant":0,"moderate":1,"mild":0,"unchanged":4,"worsened":0},{"drug":"Sumatriptan","total":6,"resolved":1,"significant":1,"moderate":3,"mild":0,"unchanged":0,"worsened":1},{"drug":"Simvastatin 20 Mg Oral Tablet","total":6,"resolved":2,"significant":4,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Red and near infrared light therapy","total":6,"resolved":1,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Provigil","total":6,"resolved":0,"significant":1,"moderate":3,"mild":2,"unchanged":0,"worsened":0},{"drug":"Probiotics","total":6,"resolved":1,"significant":0,"moderate":0,"mild":0,"unchanged":4,"worsened":1},{"drug":"Pepcid","total":6,"resolved":2,"significant":0,"moderate":3,"mild":0,"unchanged":1,"worsened":0},{"drug":"Omalizumab","total":6,"resolved":0,"significant":1,"moderate":3,"mild":2,"unchanged":0,"worsened":0},{"drug":"Nasalcrom","total":6,"resolved":0,"significant":4,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Minoxidil 2.5 Mg Oral Tablet [Loniten]","total":6,"resolved":0,"significant":6,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Methylated Vitamin B","total":6,"resolved":0,"significant":1,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Magnesium taurate","total":6,"resolved":0,"significant":0,"moderate":0,"mild":1,"unchanged":5,"worsened":0},{"drug":"Magnesium Citrate 100 Mg Oral Tablet","total":6,"resolved":0,"significant":2,"moderate":2,"mild":1,"unchanged":0,"worsened":0},{"drug":"Low Histamine Diet","total":6,"resolved":5,"significant":1,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Lageviro","total":6,"resolved":3,"significant":3,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Lactated Ringer's Intravenous Solution","total":6,"resolved":1,"significant":3,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Ivabradine 7.5 Mg Oral Tablet [Corlanor]","total":6,"resolved":0,"significant":1,"moderate":3,"mild":2,"unchanged":0,"worsened":0},{"drug":"Ipratropium Bromide","total":6,"resolved":0,"significant":0,"moderate":0,"mild":6,"unchanged":0,"worsened":0},{"drug":"Hydroxyzine (Atarax, Vistaril)","total":6,"resolved":0,"significant":4,"moderate":0,"mild":0,"unchanged":1,"worsened":1},{"drug":"Guanfacine 2 Mg Oral Tablet","total":6,"resolved":0,"significant":4,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"Gabapentin 300 Mg Oral Capsule [Neurontin]","total":6,"resolved":0,"significant":0,"moderate":1,"mild":2,"unchanged":2,"worsened":1},{"drug":"Folate","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Fluoxetine (Prozac)","total":6,"resolved":0,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":1},{"drug":"Fexofenadine HCL","total":6,"resolved":1,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Famciclovir (Famvir)","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Desmopressin","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Dayvigo","total":6,"resolved":0,"significant":1,"moderate":5,"mild":0,"unchanged":0,"worsened":0},{"drug":"Cpap","total":6,"resolved":0,"significant":2,"moderate":2,"mild":1,"unchanged":1,"worsened":0},{"drug":"Clopidogrel 75 Mg Oral Tablet [Plavix]","total":6,"resolved":1,"significant":3,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"Chinese herbs","total":6,"resolved":2,"significant":4,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Azithromycin","total":6,"resolved":0,"significant":0,"moderate":1,"mild":0,"unchanged":5,"worsened":0},{"drug":"Aripiprazole (Ability, Aristada)","total":6,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":6,"worsened":0},{"drug":"Alprazolam (Xanax, Alprax, Niravam, etc.) ","total":6,"resolved":0,"significant":0,"moderate":2,"mild":0,"unchanged":4,"worsened":0},{"drug":"5-Htp","total":6,"resolved":0,"significant":3,"moderate":1,"mild":2,"unchanged":0,"worsened":0},{"drug":"24 Hr Nicotine 0.292 Mg/Hr Transdermal System","total":6,"resolved":0,"significant":2,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"trazadone","total":5,"resolved":0,"significant":2,"moderate":2,"mild":1,"unchanged":0,"worsened":0},{"drug":"marijuana","total":5,"resolved":0,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"intravenous iron transfusion","total":5,"resolved":0,"significant":1,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"fluvoxamine","total":5,"resolved":3,"significant":0,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"escitalopram 10mg","total":5,"resolved":0,"significant":2,"moderate":0,"mild":3,"unchanged":0,"worsened":0},{"drug":"cromolyn sodium oral","total":5,"resolved":3,"significant":1,"moderate":1,"mild":0,"unchanged":0,"worsened":0},{"drug":"Zolpidem","total":5,"resolved":0,"significant":1,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Vyepti","total":5,"resolved":0,"significant":3,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"Venlafaxine Er","total":5,"resolved":0,"significant":0,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Venlafaxine","total":5,"resolved":0,"significant":0,"moderate":4,"mild":1,"unchanged":0,"worsened":0},{"drug":"Valtrex","total":5,"resolved":2,"significant":3,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Ubrelvy","total":5,"resolved":0,"significant":4,"moderate":0,"mild":0,"unchanged":1,"worsened":0},{"drug":"Ubiquinone","total":5,"resolved":0,"significant":1,"moderate":0,"mild":0,"unchanged":4,"worsened":0},{"drug":"Tenofovir-Emtricitabine (Truvada)","total":5,"resolved":0,"significant":3,"moderate":0,"mild":2,"unchanged":0,"worsened":0},{"drug":"Symbicort","total":5,"resolved":0,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Suvorexant (Belsomra)","total":5,"resolved":0,"significant":0,"moderate":0,"mild":0,"unchanged":3,"worsened":2},{"drug":"Pyridostigmine Bromide 60 Mg Oral Tablet [Mestinon]","total":5,"resolved":0,"significant":0,"moderate":2,"mild":3,"unchanged":0,"worsened":0},{"drug":"Plasmalogens","total":5,"resolved":0,"significant":0,"moderate":0,"mild":1,"unchanged":3,"worsened":1},{"drug":"Pentoxifylline","total":5,"resolved":0,"significant":0,"moderate":0,"mild":5,"unchanged":0,"worsened":0},{"drug":"Pemgarda","total":5,"resolved":2,"significant":3,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Omalizumab (Xolair)","total":5,"resolved":0,"significant":1,"moderate":1,"mild":0,"unchanged":2,"worsened":0},{"drug":"Metformin (Fortamet, Glucophage, Axpinet, Diagemet, etc.)","total":5,"resolved":0,"significant":1,"moderate":4,"mild":0,"unchanged":0,"worsened":0},{"drug":"Meclizine","total":5,"resolved":0,"significant":1,"moderate":0,"mild":1,"unchanged":3,"worsened":0},{"drug":"Lisdexamfetamine Dimesylate 50 Mg Oral Capsule [Vyvanse]","total":5,"resolved":4,"significant":1,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Levocetirizine Dihydrochloride 5 Mg Oral Tablet","total":5,"resolved":0,"significant":1,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Lactase","total":5,"resolved":0,"significant":0,"moderate":3,"mild":2,"unchanged":0,"worsened":0},{"drug":"Ketamine","total":5,"resolved":0,"significant":3,"moderate":2,"mild":0,"unchanged":0,"worsened":0},{"drug":"Immunoglobulins, Intravenous (IVIG) (Bivigam, Gammagard, etc.)","total":5,"resolved":0,"significant":1,"moderate":3,"mild":1,"unchanged":0,"worsened":0},{"drug":"Immunoglobulins, Intravenous (IVIG)","total":5,"resolved":2,"significant":0,"moderate":0,"mild":3,"unchanged":0,"worsened":0},{"drug":"Hydroxychloroquine","total":5,"resolved":0,"significant":0,"moderate":1,"mild":3,"unchanged":1,"worsened":0},{"drug":"Heparin Injectable Solution","total":5,"resolved":1,"significant":4,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Gabapentin 300 Mg Oral Capsule","total":5,"resolved":0,"significant":0,"moderate":2,"mild":0,"unchanged":3,"worsened":0},{"drug":"Famotidine 20 Mg Oral Tablet [Pepcid]","total":5,"resolved":1,"significant":3,"moderate":0,"mild":0,"unchanged":1,"worsened":0},{"drug":"Electrolyte-A Intravenous Solution","total":5,"resolved":0,"significant":1,"moderate":1,"mild":0,"unchanged":0,"worsened":0},{"drug":"Duloxetine 60 Mg Delayed Release Oral Capsule [Cymbalta]","total":5,"resolved":0,"significant":1,"moderate":2,"mild":0,"unchanged":2,"worsened":0},{"drug":"Cyclobenzaprine","total":5,"resolved":0,"significant":1,"moderate":2,"mild":1,"unchanged":1,"worsened":0},{"drug":"Cromolyn Sodium 20 Mg/Ml Oral Solution","total":5,"resolved":2,"significant":1,"moderate":1,"mild":1,"unchanged":0,"worsened":0},{"drug":"Cromolyn","total":5,"resolved":0,"significant":1,"moderate":2,"mild":2,"unchanged":0,"worsened":0},{"drug":"Creatine","total":5,"resolved":0,"significant":0,"moderate":2,"mild":2,"unchanged":1,"worsened":0},{"drug":"Coenzyme Q10","total":5,"resolved":1,"significant":0,"moderate":2,"mild":1,"unchanged":0,"worsened":0},{"drug":"Cimetidine (Tagamet)","total":5,"resolved":0,"significant":1,"moderate":0,"mild":0,"unchanged":4,"worsened":0},{"drug":"Berberine","total":5,"resolved":0,"significant":2,"moderate":0,"mild":3,"unchanged":0,"worsened":0},{"drug":"BPC-157","total":5,"resolved":2,"significant":3,"moderate":0,"mild":0,"unchanged":0,"worsened":0},{"drug":"Asprin","total":5,"resolved":0,"significant":0,"moderate":0,"mild":1,"unchanged":4,"worsened":0},{"drug":"Amoxicillin","total":5,"resolved":2,"significant":1,"moderate":0,"mild":2,"unchanged":0,"worsened":0},{"drug":"Adderall XR","total":5,"resolved":0,"significant":1,"moderate":1,"mild":0,"unchanged":2,"worsened":1},{"drug":"Abilify","total":5,"resolved":0,"significant":3,"moderate":1,"mild":0,"unchanged":1,"worsened":0}];
+// Data will be loaded from external JSON file or embedded
+let DATA = [];
+
+async function loadData() {
+  try {
+    const resp = await fetch('drug_outcomes.json');
+    DATA = await resp.json();
+  } catch(e) {
+    // Fallback: data embedded at build time
+    console.error('Could not load drug_outcomes.json, using embedded data');
+    DATA = EMBEDDED_DATA || [];
+  }
+  if (DATA.length) render();
+}
+
+const COLORS = {
+  resolved: '#2ecc71',
+  significant: '#27ae60',
+  moderate: '#82c91e',
+  mild: '#f1c40f',
+  unchanged: '#7f8c8d',
+  worsened: '#e74c3c'
+};
+
+const LABELS = {
+  resolved: 'Complete resolution',
+  significant: 'Significant improvement',
+  moderate: 'Moderate improvement',
+  mild: 'Mild improvement',
+  unchanged: 'Unchanged',
+  worsened: 'Worsened'
+};
+
+function render() {
+  const sortBy = document.getElementById('sort-select').value;
+  const minReports = parseInt(document.getElementById('min-reports').value);
+  const showPct = document.getElementById('show-pct').checked;
+
+  let filtered = DATA.filter(d => d.total >= minReports);
+
+  // Sort
+  switch(sortBy) {
+    case 'total':
+      filtered.sort((a, b) => b.total - a.total);
+      break;
+    case 'pct-positive':
+      filtered.sort((a, b) => {
+        const cats = ['resolved','significant','moderate','mild','unchanged','worsened'];
+        const tA = cats.reduce((s,c) => s + a[c], 0);
+        const tB = cats.reduce((s,c) => s + b[c], 0);
+        const pctA = (a.resolved + a.significant + a.moderate + a.mild) / tA;
+        const pctB = (b.resolved + b.significant + b.moderate + b.mild) / tB;
+        return pctB - pctA;
+      });
+      break;
+    case 'pct-significant':
+      filtered.sort((a, b) => {
+        const cats = ['resolved','significant','moderate','mild','unchanged','worsened'];
+        const tA = cats.reduce((s,c) => s + a[c], 0);
+        const tB = cats.reduce((s,c) => s + b[c], 0);
+        const pctA = (a.resolved + a.significant) / tA;
+        const pctB = (b.resolved + b.significant) / tB;
+        return pctB - pctA;
+      });
+      break;
+    case 'pct-resolved':
+      filtered.sort((a, b) => {
+        const cats = ['resolved','significant','moderate','mild','unchanged','worsened'];
+        const tA = cats.reduce((s,c) => s + a[c], 0);
+        const tB = cats.reduce((s,c) => s + b[c], 0);
+        const pctA = a.resolved / tA;
+        const pctB = b.resolved / tB;
+        return pctB - pctA;
+      });
+      break;
+    case 'pct-worsened':
+      filtered.sort((a, b) => {
+        const cats = ['resolved','significant','moderate','mild','unchanged','worsened'];
+        const tA = cats.reduce((s,c) => s + a[c], 0);
+        const tB = cats.reduce((s,c) => s + b[c], 0);
+        const pctA = a.worsened / tA;
+        const pctB = b.worsened / tB;
+        return pctA - pctB;
+      });
+      break;
+    case 'alpha':
+      filtered.sort((a, b) => a.drug.localeCompare(b.drug));
+      break;
+  }
+
+  const maxTotal = Math.max(...filtered.map(d => d.total));
+  const chart = document.getElementById('chart');
+  let html = '';
+
+  filtered.forEach(d => {
+    const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
+    const trackedTotal = categories.reduce((sum, cat) => sum + d[cat], 0);
+
+    let segments = '';
+    let barWidth;
+
+    if (!showPct) {
+      // Absolute mode: bar width = total relative to max, segments proportional within
+      barWidth = d.total / maxTotal * 100;
+      categories.forEach(cat => {
+        const val = d[cat];
+        if (val === 0) return;
+        const width = val / d.total * 100;
+        segments += `<div class="bar-segment" style="width:${width}%;background:${COLORS[cat]}" data-cat="${cat}" data-val="${val}"></div>`;
+      });
+    } else {
+      // Percentage mode: bar always full width, segments show proportion of total
+      barWidth = 100;
+      categories.forEach(cat => {
+        const val = d[cat];
+        if (val === 0) return;
+        const width = val / trackedTotal * 100;
+        segments += `<div class="bar-segment" style="width:${width}%;background:${COLORS[cat]}" data-cat="${cat}" data-val="${val}"></div>`;
+      });
+    }
+    const pctPositive = Math.round((d.resolved + d.significant + d.moderate + d.mild) / trackedTotal * 100);
+    const pctSig = Math.round((d.resolved + d.significant) / trackedTotal * 100);
+    const pctResolved = Math.round(d.resolved / trackedTotal * 100);
+    const label = d.drug.length > 40 ? d.drug.substring(0, 38) + '…' : d.drug;
+    let countLabel;
+    if (!showPct) {
+      countLabel = `${d.total}`;
+    } else if (sortBy === 'pct-significant') {
+      countLabel = `${pctSig}%`;
+    } else if (sortBy === 'pct-resolved') {
+      countLabel = `${pctResolved}%`;
+    } else {
+      countLabel = `${pctPositive}%`;
+    }
+
+    html += `<div class="bar-row" data-drug='${JSON.stringify(d).replace(/'/g, "&#39;")}'>
+      <div class="bar-label" title="${d.drug}">${label}</div>
+      <div class="bar-stack" style="width:${barWidth}%">${segments}</div>
+      <div class="bar-count">${countLabel}</div>
+    </div>`;
+  });
+
+  chart.innerHTML = html;
+
+  // Tooltip
+  const tooltip = document.getElementById('tooltip');
+  chart.querySelectorAll('.bar-row').forEach(row => {
+    row.addEventListener('mouseenter', (e) => {
+      const d = JSON.parse(row.dataset.drug);
+      const pctPos = Math.round((d.resolved + d.significant + d.moderate + d.mild) / d.total * 100);
+      const pctSig = Math.round((d.resolved + d.significant) / d.total * 100);
+      let lines = `<div class="drug-name">${d.drug}</div>`;
+      lines += `<div style="margin-bottom:6px;color:#aaa">Total outcomes: ${d.total} | ${pctPos}% positive | ${pctSig}% significant+resolved</div>`;
+      const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
+      categories.forEach(cat => {
+        const val = d[cat];
+        const pct = Math.round(val / d.total * 100);
+        lines += `<div class="outcome-line">
+          <span class="outcome-label"><span class="dot" style="background:${COLORS[cat]}"></span>${LABELS[cat]}</span>
+          <span>${val} (${pct}%)</span>
+        </div>`;
+      });
+      tooltip.innerHTML = lines;
+      tooltip.style.display = 'block';
+    });
+    row.addEventListener('mousemove', (e) => {
+      tooltip.style.left = (e.clientX + 15) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    row.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+    });
+  });
+}
+
+// Event listeners
+document.getElementById('sort-select').addEventListener('change', render);
+document.getElementById('min-reports').addEventListener('input', (e) => {
+  document.getElementById('min-reports-val').textContent = e.target.value;
+  render();
+});
+document.getElementById('show-pct').addEventListener('change', render);
+
+loadData();
+</script>
+</body>
+</html>

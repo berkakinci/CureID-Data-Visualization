@@ -21,6 +21,10 @@ sqlite3 cureid.db           # query directly
 - `comorbidities_after` — conditions developed post-disease (e.g., ME/CFS after Long COVID)
 - `extra_fields` — vaccine status, symptom duration, EHR labs, free-text notes
 
+## Visualization
+
+Open `drug_outcomes_viz.html` in a browser — self-contained stacked bar chart of drug→outcome data. Sort by % positive, % significant, % resolved, or % worsened. Hover for details. Adjust minimum report threshold with the slider.
+
 ## Data source
 
 API: `https://cure-api.ncats.io/v2` (no auth required).  
