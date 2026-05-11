@@ -153,11 +153,16 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
         without_ids = all_report_ids - report_ids
         n_without = len(without_ids)
         improved_without = sum(1 for rid in without_ids if report_outcomes[rid][0] == 1)
+        sig_without = sum(1 for rid in without_ids if report_outcomes[rid][1] == 1)
 
         # Rates
         rate_with = improved_with / n_with_drug if n_with_drug > 0 else 0
         rate_without = improved_without / n_without if n_without > 0 else 0
-        lift = rate_with - rate_without  # positive = drug associated with better outcomes
+        lift = rate_with - rate_without
+
+        sig_rate_with = sig_with / n_with_drug if n_with_drug > 0 else 0
+        sig_rate_without = sig_without / n_without if n_without > 0 else 0
+        sig_lift = sig_rate_with - sig_rate_without
 
         # Attributed stats (if available)
         attr = attributed.get(drug_name, None)
@@ -169,6 +174,8 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
             "cooccur_sig": sig_with,
             "cooccur_rate": rate_with,
             "cooccur_lift": lift,
+            "cooccur_sig_rate": sig_rate_with,
+            "cooccur_sig_lift": sig_lift,
             "baseline_rate": rate_without,
             "attr_n": attr["total"] if attr else 0,
             "attr_improved": attr["improved"] if attr else 0,
@@ -179,6 +186,29 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
 
     # Sort by co-occurrence lift (how much better than baseline)
     results.sort(key=lambda r: -r["cooccur_lift"])
+
+    # Compute attributed baseline (across all attributed entries for this symptom)
+    attr_total_all = sum(a["total"] for a in attributed.values())
+    attr_improved_all = sum(a["improved"] for a in attributed.values())
+    attr_sig_all = sum(a["sig_improved"] for a in attributed.values())
+    attr_baseline_rate = attr_improved_all / attr_total_all if attr_total_all > 0 else 0
+    attr_baseline_sig = attr_sig_all / attr_total_all if attr_total_all > 0 else 0
+    baseline_stats["attr_total"] = attr_total_all
+    baseline_stats["attr_improved_rate"] = attr_baseline_rate
+    baseline_stats["attr_sig_rate"] = attr_baseline_sig
+
+    # Add attributed lifts to results
+    for r in results:
+        if r["attr_n"] > 0:
+            r["attr_impr_rate"] = r["attr_improved"] / r["attr_n"]
+            r["attr_sig_rate"] = r["attr_sig"] / r["attr_n"]
+            r["attr_impr_lift"] = r["attr_impr_rate"] - attr_baseline_rate
+            r["attr_sig_lift"] = r["attr_sig_rate"] - attr_baseline_sig
+        else:
+            r["attr_impr_rate"] = None
+            r["attr_sig_rate"] = None
+            r["attr_impr_lift"] = None
+            r["attr_sig_lift"] = None
 
     return symptom_name, baseline_stats, results
 
@@ -199,19 +229,20 @@ def print_symptom_results(symptom_name, baseline, results, top_n=20):
     filtered.sort(key=lambda r: -r["cooccur_lift"])
 
     print(f"\n  Top by co-occurrence lift (min 10 reports taking drug):")
-    print(f"  {'Drug':<32} {'N':>4} {'Rate':>5} {'Lift':>6} | {'Attr N':>6} {'Attr%':>5} {'Sig%':>5}")
-    print(f"  {'-'*32} {'-'*4} {'-'*5} {'-'*6} | {'-'*6} {'-'*5} {'-'*5}")
+    print(f"  {'Drug':<32} {'N':>4} {'Rate':>5} {'Sig%':>5} {'Lift':>6} | {'Attr N':>6} {'Attr%':>5} {'Sig%':>5}")
+    print(f"  {'-'*32} {'-'*4} {'-'*5} {'-'*5} {'-'*6} | {'-'*6} {'-'*5} {'-'*5}")
 
     for r in filtered[:top_n]:
         drug = r["drug"][:32]
         co_n = r["cooccur_n"]
         co_rate = f"{r['cooccur_rate']*100:.0f}%"
+        co_sig = f"{r['cooccur_sig']/r['cooccur_n']*100:.0f}%" if r["cooccur_n"] > 0 else "-"
         lift = f"{r['cooccur_lift']*100:+.0f}%"
         attr_n = r["attr_n"] if r["attr_n"] else "-"
         attr_rate = f"{r['attr_rate']*100:.0f}%" if r["attr_rate"] is not None else "-"
         attr_sig = f"{r['attr_sig']/r['attr_n']*100:.0f}%" if r["attr_n"] else "-"
 
-        print(f"  {drug:<32} {co_n:>4} {co_rate:>5} {lift:>6} | {attr_n:>6} {attr_rate:>5} {attr_sig:>5}")
+        print(f"  {drug:<32} {co_n:>4} {co_rate:>5} {co_sig:>5} {lift:>6} | {attr_n:>6} {attr_rate:>5} {attr_sig:>5}")
 
     # Also show top by attributed significant improvement rate (min 5 attributed)
     attr_results = [r for r in results if r["attr_n"] >= 5]
@@ -232,6 +263,67 @@ def print_symptom_results(symptom_name, baseline, results, top_n=20):
             lift = f"{r['cooccur_lift']*100:+.0f}%"
 
             print(f"  {drug:<32} {attr_n:>6} {attr_sig:>5} {attr_rate:>5} {attr_worse:>5} | {co_n:>5} {lift:>6}")
+
+
+def markdown_symptom_results(symptom_name, baseline, results, top_n_co=15, top_n_attr=10):
+    """Return markdown-formatted results for one symptom."""
+    short = get_short_name(symptom_name)
+    bl_rate = baseline["improved"] / baseline["total"] * 100 if baseline["total"] > 0 else 0
+    bl_sig = baseline["sig_improved"] / baseline["total"] * 100 if baseline["total"] > 0 else 0
+    attr_bl_rate = baseline.get("attr_improved_rate", 0) * 100
+    attr_bl_sig = baseline.get("attr_sig_rate", 0) * 100
+
+    lines = []
+    lines.append(f"### {short}")
+    lines.append("")
+
+    header = "| Drug | Co-N | Sig% | Sig Lift | Impr% | Impr Lift | Attr N | Attr Sig% | Attr Sig Lift | Attr Impr% | Attr Impr Lift |"
+    sep =    "|------|------|------|----------|-------|-----------|--------|-----------|---------------|------------|----------------|"
+
+    def format_row(r):
+        drug = r["drug"]
+        co_n = r["cooccur_n"]
+        impr = f"{r['cooccur_rate']*100:.0f}%"
+        impr_lift = f"{r['cooccur_lift']*100:+.0f}%"
+        sig = f"{r['cooccur_sig_rate']*100:.0f}%"
+        sig_lift = f"{r['cooccur_sig_lift']*100:+.0f}%"
+        attr_n = r["attr_n"] if r["attr_n"] else "—"
+        attr_impr = f"{r['attr_impr_rate']*100:.0f}%" if r.get("attr_impr_rate") is not None else "—"
+        attr_impr_l = f"{r['attr_impr_lift']*100:+.0f}%" if r.get("attr_impr_lift") is not None else "—"
+        attr_sig = f"{r['attr_sig_rate']*100:.0f}%" if r.get("attr_sig_rate") is not None else "—"
+        attr_sig_l = f"{r['attr_sig_lift']*100:+.0f}%" if r.get("attr_sig_lift") is not None else "—"
+        return f"| {drug} | {co_n} | {sig} | {sig_lift} | {impr} | {impr_lift} | {attr_n} | {attr_sig} | {attr_sig_l} | {attr_impr} | {attr_impr_l} |"
+
+    # Table 1: sorted by co-occurrence Sig Lift
+    filtered = [r for r in results if r["cooccur_n"] >= 10]
+    filtered.sort(key=lambda r: -r["cooccur_sig_lift"])
+
+    lines.append("**Co-occurrence lift leaders** (sorted by Sig Lift, min 10 co-occurring reports):")
+    lines.append("")
+    lines.append(header)
+    lines.append(sep)
+    lines.append(f"| **BASELINE** | **{baseline['total']}** | **{bl_sig:.0f}%** | — | **{bl_rate:.0f}%** | — | **{baseline.get('attr_total', 0)}** | **{attr_bl_sig:.0f}%** | — | **{attr_bl_rate:.0f}%** | — |")
+    lines.append("| | | | | | | | | | | |")
+    for r in filtered[:top_n_co]:
+        lines.append(format_row(r))
+    lines.append("")
+
+    # Table 2: sorted by Attr Sig Lift, min 5 attributed
+    attr_results = [r for r in results if r["attr_n"] >= 5]
+    attr_results.sort(key=lambda r: -(r.get("attr_sig_lift") or -999))
+
+    if attr_results:
+        lines.append("**Attributed significance leaders** (sorted by Attr Sig Lift, min 5 attributed):")
+        lines.append("")
+        lines.append(header)
+        lines.append(sep)
+        lines.append(f"| **BASELINE** | **{baseline['total']}** | **{bl_sig:.0f}%** | — | **{bl_rate:.0f}%** | — | **{baseline.get('attr_total', 0)}** | **{attr_bl_sig:.0f}%** | — | **{attr_bl_rate:.0f}%** | — |")
+        lines.append("| | | | | | | | | | | |")
+        for r in attr_results[:top_n_attr]:
+            lines.append(format_row(r))
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def export_results(db_path, output_path):
@@ -300,6 +392,17 @@ if __name__ == "__main__":
 
     if "--export" in args:
         export_results(DB_PATH, Path(__file__).parent / "symptom_drug_efficacy.csv")
+    elif "--markdown" in args:
+        # Output markdown tables for top symptoms
+        patterns = TOP_SYMPTOMS
+        # Allow specific symptom: --markdown "brain fog"
+        non_flag = [a for a in args if not a.startswith("-")]
+        if non_flag:
+            patterns = non_flag
+        for pattern in patterns:
+            symptom_name, baseline, results = analyze_symptom(cur, pattern)
+            if symptom_name and results:
+                print(markdown_symptom_results(symptom_name, baseline, results))
     elif "--all" in args:
         cur.execute("""
             SELECT symptom, COUNT(*) as cnt FROM symptom_outcomes so
