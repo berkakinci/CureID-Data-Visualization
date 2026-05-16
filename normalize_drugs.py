@@ -44,6 +44,79 @@ def normalize_key(name):
     return s
 
 
+def _strip_parentheticals(name):
+    """Strip parenthetical brand/alt names from a drug name, preserving the base name.
+    
+    'Albuterol (Salbutamol, Proventil HFA, etc.)' → 'Albuterol'
+    'Budesonide-Formoterol (Symbicort)' → 'Budesonide-Formoterol'
+    'Low Dose Naltrexone (LDN) (Vivitrol, etc.)' → 'Low Dose Naltrexone (LDN)'
+    """
+    # Remove parenthetical "etc" lists first
+    s = re.sub(r'\(([^)]*etc\.?)\)', '', name)
+    # Remove trailing parenthetical if it's brand names (words, commas, spaces)
+    s = re.sub(r'\([\w\s,/\-]+\)\s*$', '', s)
+    return s.strip()
+
+
+def load_name_map(db_path=None):
+    """Load the drug_name_map table into a dict (lowercase raw → canonical).
+    
+    Returns a dict for fast Python-side lookups.
+    """
+    if db_path is None:
+        db_path = DB_PATH
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT raw_name, canonical_name FROM drug_name_map")
+    mapping = {row[0].strip().lower(): row[1] for row in cur.fetchall()}
+    conn.close()
+    return mapping
+
+
+def normalize_name(raw_name, name_map=None):
+    """Normalize a single drug name.
+    
+    Strategy:
+    1. Try exact match (case-insensitive, trimmed) against name_map
+    2. Apply programmatic cleanup (strip parentheticals, dosage, salts)
+    3. Look up the cleaned name in name_map
+    4. If still no match, return the cleaned version
+    
+    The table is the authority — cleanup just gets messy names into a form
+    the table can recognize.
+    
+    Args:
+        raw_name: The raw drug name string
+        name_map: Dict from load_name_map(). If None, returns best-effort without table.
+    
+    Returns:
+        Normalized canonical drug name string.
+    """
+    if not raw_name:
+        return raw_name
+    
+    trimmed = raw_name.strip()
+    key = trimmed.lower()
+    
+    # 1. Direct table lookup (already clean names hit here)
+    if name_map and key in name_map:
+        return name_map[key]
+    
+    # 2. Programmatic cleanup, then table lookup
+    stripped = _strip_parentheticals(trimmed)
+    stripped_key = stripped.strip().lower()
+    if name_map and stripped_key in name_map:
+        return name_map[stripped_key]
+    
+    # 3. Aggressive cleanup (normalize_key), then table lookup
+    fuzzy = normalize_key(trimmed)
+    if name_map and fuzzy in name_map:
+        return name_map[fuzzy]
+    
+    # 4. No table match — return the cleaned version
+    return stripped if stripped else trimmed
+
+
 def rebuild_view(db_path):
     """(Re)create the normalized outcome view."""
     conn = sqlite3.connect(db_path)

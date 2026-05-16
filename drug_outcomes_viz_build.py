@@ -9,9 +9,10 @@ Generates:
 import sqlite3
 import json
 import os
+from normalize_drugs import load_name_map, normalize_name
 
 
-def build_outcomes(cur):
+def build_outcomes(cur, name_map):
     """Generate drug_outcomes.json — per-drug outcome counts + per-report scores."""
     # Outcome score mapping
     SCORE = {
@@ -25,11 +26,12 @@ def build_outcomes(cur):
         'Significant symptom worsening': -2,
     }
 
-    # Get all attributed outcomes for Long COVID
+    # Get all attributed outcomes for Long COVID (raw names, normalize in Python)
     cur.execute('''
-        SELECT v.drug_name, v.report_id, v.outcome
-        FROM v_drug_outcomes v
-        JOIN reports r ON v.report_id = r.id
+        SELECT sod.drug_name, so.report_id, so.outcome
+        FROM symptom_outcome_drugs sod
+        JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
+        JOIN reports r ON so.report_id = r.id
         WHERE r.disease_id = 1988
     ''')
 
@@ -41,7 +43,8 @@ def build_outcomes(cur):
         'resolved': 0, 'significant': 0, 'moderate': 0,
         'mild': 0, 'unchanged': 0, 'worsened': 0})
 
-    for drug_name, report_id, outcome in cur.fetchall():
+    for raw_drug_name, report_id, outcome in cur.fetchall():
+        drug_name = normalize_name(raw_drug_name, name_map)
         d = drug_counts[drug_name]
         d['total'] += 1
         d['reports'].add(report_id)
@@ -96,61 +99,28 @@ def build_outcomes(cur):
         json.dump(data, f, separators=(',', ':'))
     print(f'drug_outcomes_viz_data.json: {len(data)} drugs ({os.path.getsize("drug_outcomes_viz_data.json")/1024:.0f} KB)')
 
-def build_details(cur):
+def build_details(cur, name_map):
     """Generate drug_report_details.json — per-drug case list with metadata."""
 
-    # For each drug, get the reports using it with useful metadata
+    # Get all attributed symptom outcomes for Long COVID (raw names, normalize in Python)
     cur.execute('''
-        SELECT COALESCE(m.canonical_name, TRIM(d.name)) as drug_name,
-               r.id as report_id,
-               r.outcome_computed,
-               r.author_qualification,
-               p.sex, p.age_group, p.country_treated,
-               ef.symptoms_duration
-        FROM report_drugs rd
-        JOIN drugs d ON rd.drug_id = d.id
-        LEFT JOIN drug_name_map m ON LOWER(TRIM(d.name)) = LOWER(TRIM(m.raw_name))
-        JOIN reports r ON rd.report_id = r.id
-        JOIN patients p ON r.id = p.report_id
-        LEFT JOIN extra_fields ef ON r.id = ef.report_id
-        WHERE r.disease_id = 1988
-        ORDER BY drug_name, r.id
-    ''')
-
-    drug_reports = {}
-    for row in cur.fetchall():
-        drug = row[0]
-        if drug not in drug_reports:
-            drug_reports[drug] = []
-        drug_reports[drug].append({
-            'id': row[1],
-            'outcome': row[2],
-            'author': row[3],
-            'sex': row[4],
-            'age': row[5],
-            'country': row[6],
-            'duration': row[7]
-        })
-
-    # Get symptom outcomes attributed to each drug (normalize drug names)
-    cur.execute('''
-        SELECT COALESCE(m.canonical_name, TRIM(sod.drug_name)) as drug_name,
-               so.report_id,
-               so.symptom,
-               so.outcome
+        SELECT sod.drug_name, so.report_id, so.symptom, so.outcome
         FROM symptom_outcome_drugs sod
         JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
-        LEFT JOIN drug_name_map m ON LOWER(TRIM(sod.drug_name)) = LOWER(TRIM(m.raw_name))
         JOIN reports r ON so.report_id = r.id
         WHERE r.disease_id = 1988
     ''')
 
     # Build drug -> report_id -> list of {symptom, outcome}
-    drug_symptom_outcomes = {}
-    for row in cur.fetchall():
-        drug, report_id, symptom, outcome = row
-        if drug not in drug_symptom_outcomes:
+    # and collect all (drug, report_id) pairs
+    drug_report_ids = {}  # drug -> set of report_ids
+    drug_symptom_outcomes = {}  # drug -> report_id -> list of {s, o}
+    for raw_drug_name, report_id, symptom, outcome in cur.fetchall():
+        drug = normalize_name(raw_drug_name, name_map)
+        if drug not in drug_report_ids:
+            drug_report_ids[drug] = set()
             drug_symptom_outcomes[drug] = {}
+        drug_report_ids[drug].add(report_id)
         if report_id not in drug_symptom_outcomes[drug]:
             drug_symptom_outcomes[drug][report_id] = []
         # Shorten symptom names for JSON size
@@ -164,13 +134,42 @@ def build_details(cur):
             'o': short_outcome
         })
 
-    # Merge symptom outcomes into drug_reports
-    for drug, reports in drug_reports.items():
-        for report in reports:
-            rid = report['id']
+    # Get report metadata for all Long COVID reports
+    cur.execute('''
+        SELECT r.id, r.outcome_computed, r.author_qualification,
+               p.sex, p.age_group, p.country_treated, ef.symptoms_duration
+        FROM reports r
+        JOIN patients p ON r.id = p.report_id
+        LEFT JOIN extra_fields ef ON r.id = ef.report_id
+        WHERE r.disease_id = 1988
+    ''')
+    report_meta = {}
+    for row in cur.fetchall():
+        report_meta[row[0]] = {
+            'id': row[0],
+            'outcome': row[1],
+            'author': row[2],
+            'sex': row[3],
+            'age': row[4],
+            'country': row[5],
+            'duration': row[6]
+        }
+
+    # Build final structure: drug -> list of case dicts
+    drug_reports = {}
+    for drug, report_ids in drug_report_ids.items():
+        cases = []
+        for rid in report_ids:
+            meta = report_meta.get(rid)
+            if not meta:
+                continue
+            case = dict(meta)
             symptoms = drug_symptom_outcomes.get(drug, {}).get(rid, [])
             if symptoms:
-                report['sx'] = symptoms
+                case['sx'] = symptoms
+            cases.append(case)
+        if cases:
+            drug_reports[drug] = cases
 
     # Stats
     total_drugs = len(drug_reports)
@@ -215,8 +214,9 @@ def build_html():
 def main():
     conn = sqlite3.connect('cureid.db')
     cur = conn.cursor()
-    build_outcomes(cur)
-    build_details(cur)
+    name_map = load_name_map('cureid.db')
+    build_outcomes(cur, name_map)
+    build_details(cur, name_map)
     conn.close()
     build_html()
 

@@ -108,35 +108,45 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
     report_outcomes = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
     all_report_ids = set(report_outcomes.keys())
 
-    # Get drugs for each of these reports (normalized via drug_name_map)
+    # Get drugs for each of these reports (normalized via normalize_name)
+    from normalize_drugs import load_name_map, normalize_name
+    name_map = load_name_map()
     placeholders = ",".join("?" * len(all_report_ids))
     cur.execute(f"""
-        SELECT rd.report_id, COALESCE(m.canonical_name, TRIM(d.name)) as drug_name
+        SELECT rd.report_id, d.name
         FROM report_drugs rd
         JOIN drugs d ON rd.drug_id = d.id
-        LEFT JOIN drug_name_map m ON LOWER(TRIM(d.name)) = LOWER(TRIM(m.raw_name))
         WHERE rd.report_id IN ({placeholders})
     """, list(all_report_ids))
 
     # Build drug → set of report_ids
     from collections import defaultdict
     drug_reports = defaultdict(set)
-    for report_id, drug_name in cur.fetchall():
+    for report_id, raw_drug_name in cur.fetchall():
+        drug_name = normalize_name(raw_drug_name, name_map)
         drug_reports[drug_name].add(report_id)
 
-    # Attributed outcomes (from v_drug_outcomes)
+    # Attributed outcomes (normalize in Python)
     cur.execute("""
-        SELECT drug_name,
-            COUNT(*) as total,
-            SUM(CASE WHEN outcome LIKE '%improvement%' OR outcome LIKE '%resolution%' THEN 1 ELSE 0 END) as improved,
-            SUM(CASE WHEN outcome = 'Significant symptom improvement' OR outcome = 'Complete symptom resolution' THEN 1 ELSE 0 END) as sig_improved,
-            SUM(CASE WHEN outcome LIKE '%worsening%' THEN 1 ELSE 0 END) as worsened
-        FROM v_drug_outcomes
-        WHERE symptom = ?
-        GROUP BY drug_name
-        HAVING total >= ?
-    """, (symptom_name, min_drug_reports))
-    attributed = {row[0]: {"total": row[1], "improved": row[2], "sig_improved": row[3], "worsened": row[4]} for row in cur.fetchall()}
+        SELECT sod.drug_name, so.outcome
+        FROM symptom_outcome_drugs sod
+        JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
+        JOIN reports r ON so.report_id = r.id
+        WHERE r.disease_id = 1988 AND so.symptom = ?
+    """, (symptom_name,))
+
+    from collections import defaultdict as _dd
+    _attr_raw = _dd(lambda: {"total": 0, "improved": 0, "sig_improved": 0, "worsened": 0})
+    for raw_drug, outcome in cur.fetchall():
+        drug = normalize_name(raw_drug, name_map)
+        _attr_raw[drug]["total"] += 1
+        if outcome and ('improvement' in outcome or 'resolution' in outcome):
+            _attr_raw[drug]["improved"] += 1
+        if outcome in ('Significant symptom improvement', 'Complete symptom resolution'):
+            _attr_raw[drug]["sig_improved"] += 1
+        if outcome and 'worsening' in outcome:
+            _attr_raw[drug]["worsened"] += 1
+    attributed = {d: v for d, v in _attr_raw.items() if v["total"] >= min_drug_reports}
 
     # Build results per drug
     results = []

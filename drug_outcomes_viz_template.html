@@ -24,7 +24,7 @@
   .bar-stack { display: flex; height: 22px; flex: 1; position: relative; background: #2a2a3a; border-radius: 2px; overflow: hidden; }
   .bar-stack:hover { opacity: 0.85; }
   .bar-segment { height: 100%; transition: width 0.3s; }
-  .bar-count { position: absolute; right: -40px; font-size: 10px; color: #888; line-height: 22px; width: 36px; text-align: left; }
+  .bar-count { font-size: 10px; color: #888; line-height: 22px; width: 70px; min-width: 70px; text-align: left; padding-left: 8px; }
   .tooltip { position: fixed; background: #2a2a4a; border: 1px solid #555; padding: 10px 14px; border-radius: 6px; font-size: 12px; pointer-events: none; display: none; z-index: 100; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
   .tooltip .drug-name { font-weight: bold; margin-bottom: 6px; color: #fff; }
   .tooltip .outcome-line { display: flex; justify-content: space-between; gap: 15px; margin: 2px 0; }
@@ -120,7 +120,7 @@
     <span id="min-reports-val">10</span>
   </label>
   <label>
-    <input type="checkbox" id="show-pct" checked> Normalize bars
+    <input type="checkbox" id="show-pct"> Normalize bars
   </label>
 </div>
 
@@ -420,7 +420,16 @@ document.getElementById('panel-sort').addEventListener('change', () => {
   const drugName = document.getElementById('panel-title').textContent;
   renderCases(drugName);
 });
-document.getElementById('sort-select').addEventListener('change', render);
+document.getElementById('sort-select').addEventListener('change', () => {
+  const sortBy = document.getElementById('sort-select').value;
+  const showPctCheckbox = document.getElementById('show-pct');
+  if (['pct-positive', 'pct-significant', 'pct-resolved', 'pct-worsened', 'avg-score'].includes(sortBy)) {
+    showPctCheckbox.checked = true;
+  } else {
+    showPctCheckbox.checked = false;
+  }
+  render();
+});
 document.getElementById('min-reports').addEventListener('input', (e) => {
   document.getElementById('min-reports-val').textContent = e.target.value;
   render();
