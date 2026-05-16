@@ -6,9 +6,9 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
-h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; }
-.subtitle { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
-.controls { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; text-align: center; }
+.subtitle { font-size: 0.85rem; color: #888; margin-bottom: 16px; text-align: center; }
+.controls { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
 .controls label { font-size: 0.8rem; color: #aaa; }
 .controls select, .controls input { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
 .controls button { background: #3a3a6a; border: 1px solid #555; color: #e0e0e0; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
@@ -19,8 +19,38 @@ h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; }
 svg { display: block; }
 .cell { stroke: #1a1a2e; stroke-width: 1px; cursor: pointer; }
 .cell:hover { stroke: #fff; stroke-width: 2px; }
-.axis-label { font-size: 11px; fill: #ccc; }
-.axis-label-y { font-size: 12px; fill: #ddd; font-weight: 500; }
+.axis-label { font-size: 11px; fill: #ccc; cursor: pointer; }
+.axis-label:hover { fill: #fff; }
+.axis-label-y { font-size: 12px; fill: #ddd; font-weight: 500; cursor: pointer; }
+.axis-label-y:hover { fill: #fff; }
+
+.main-area { display: flex; gap: 0; }
+.chart-side { flex: 1; min-width: 0; }
+#side-panel {
+  width: 320px; min-width: 320px; max-height: calc(100vh - 100px); overflow-y: auto;
+  background: #22223a; border: 1px solid #444; border-radius: 6px;
+  padding: 16px; font-size: 0.8rem; line-height: 1.6; display: none;
+  margin-left: 12px;
+}
+#side-panel.open { display: block; }
+#side-panel .sp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+#side-panel .sp-title { font-size: 0.95rem; font-weight: 600; color: #fff; }
+#side-panel .sp-close { background: none; border: none; color: #888; font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
+#side-panel .sp-close:hover { color: #fff; }
+#side-panel .sp-subtitle { color: #aaa; font-size: 0.78rem; margin-bottom: 12px; }
+#side-panel .sp-section { margin-bottom: 14px; }
+#side-panel .sp-section-title { color: #8cf; font-weight: 600; margin-bottom: 4px; font-size: 0.82rem; }
+#side-panel .sp-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #333; }
+#side-panel .sp-row:last-child { border-bottom: none; }
+#side-panel .sp-row-name { color: #ddd; flex: 1; }
+#side-panel .sp-row-val { color: #8cf; text-align: right; min-width: 50px; }
+#side-panel .sp-row-lift-pos { color: #4f4; text-align: right; min-width: 50px; }
+#side-panel .sp-row-lift-neg { color: #f66; text-align: right; min-width: 50px; }
+#side-panel .sp-row-n { color: #888; text-align: right; min-width: 36px; font-size: 0.75rem; }
+#side-panel .sp-detail-grid { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+#side-panel .sp-detail-label { color: #aaa; }
+#side-panel .sp-detail-val { color: #8cf; text-align: right; }
+#side-panel .sp-sep { border-top: 1px solid #444; margin: 8px 0; }
 
 #tooltip {
   position: fixed; pointer-events: none; background: #2a2a4a; border: 1px solid #666;
@@ -35,11 +65,12 @@ svg { display: block; }
 #tooltip .tt-attr { color: #fc8; }
 #tooltip .tt-sep { border-top: 1px solid #444; margin: 4px 0; }
 
-.legend { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.legend { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; justify-content: center; }
 .legend-bar { height: 14px; border-radius: 2px; }
 .legend-label { font-size: 0.75rem; color: #aaa; }
 
-.info-panel { margin-bottom: 16px; }
+.info-panel { margin-bottom: 16px; text-align: center; }
+.info-content { text-align: left; margin-left: auto; margin-right: auto; }
 .info-panel summary { cursor: pointer; font-size: 0.85rem; color: #aac; padding: 4px 0; }
 .info-panel summary:hover { color: #ccf; }
 .info-content { background: #22223a; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-top: 8px; font-size: 0.8rem; line-height: 1.6; max-width: 720px; }
@@ -86,7 +117,16 @@ svg { display: block; }
 </dl>
 
 <h4>Tooltip</h4>
-<p>Hover any cell to see: co-occurrence N, significant improvement rate and lift, any improvement rate and lift, and (if available) attributed N, significant improvement rate, and lift.</p>
+<p>Hover any cell to see: co-occurrence N, significant improvement rate and lift, any improvement rate and lift, attributed stats (if available), and symptom baseline rates.</p>
+
+<h4>Side panel (click)</h4>
+<p><b>Click a drug name</b> (column header) to see that drug's performance across all symptoms, ranked by the current metric, with total N and average.</p>
+<p><b>Click a symptom name</b> (row label) to see all drugs ranked for that symptom, plus the symptom's baseline rates.</p>
+<p><b>Click a cell</b> to see full detail: rankings (where this drug stands among all drugs for the symptom, and vice versa), all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.</p>
+
+<h4>Color scale</h4>
+<p><b>Lift metrics</b> (all three): diverging red → yellow → green. The scale range is fixed across all lift metrics and N thresholds — the same color always means the same magnitude of lift, making views directly comparable.</p>
+<p><b>Rate metric</b>: sequential yellow → green (0% to the global maximum rate). Also fixed regardless of N threshold.</p>
 
 <p><b>Dark cells</b> = no data for that pair at the current N threshold.</p>
 </div>
@@ -109,16 +149,21 @@ svg { display: block; }
   </div>
   <div>
     <label>Sort drugs by:</label>
-    <button id="sort-wavg" class="active" title="Weighted mean of the selected metric — each symptom's contribution is proportional to its co-occurrence N (higher-N estimates count more)">N-weighted avg</button>
-    <button id="sort-bayes" title="Mean lift shrunk toward zero based on total sample size: mean(lift) × N/(N + prior), where prior is the median total N across all drugs. Low-N drugs get pulled toward zero; high-N drugs keep their observed lift.">Bayesian</button>
-    <button id="sort-avg" title="Simple unweighted mean across symptoms where the drug has data — each symptom counts equally regardless of sample size">Avg lift</button>
-    <button id="sort-max" title="Highest single-symptom value (best targeted drugs first)">Max lift</button>
-    <button id="sort-alpha" title="Alphabetical order">A-Z</button>
+    <button id="sort-wavg" class="active" title="Σ(metric × N) / Σ(N) across all symptoms for each drug. Higher-N estimates contribute more.">N-weighted avg</button>
+    <button id="sort-bayes" title="mean(metric) × totalN / (totalN + priorN), where priorN = median totalN across all drugs. Shrinks low-N drugs toward zero.">Bayesian</button>
+    <button id="sort-avg" title="Σ(metric) / count(symptoms) — simple unweighted mean, each symptom counts equally.">Avg lift</button>
+    <button id="sort-max" title="max(metric) across all symptoms — best single-symptom value for each drug.">Max lift</button>
+    <button id="sort-alpha" title="Alphabetical order (A → Z)">A-Z</button>
   </div>
 </div>
 
 <div class="legend" id="legend"></div>
-<div id="chart-container"><svg id="chart"></svg></div>
+<div class="main-area">
+  <div class="chart-side">
+    <div id="chart-container"><svg id="chart"></svg></div>
+  </div>
+  <div id="side-panel"></div>
+</div>
 <div id="tooltip"></div>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -223,26 +268,36 @@ function render() {
     .attr('height', height);
   svg.selectAll('*').remove();
 
-  // Color scale — diverging
-  const vals = cells.map(c => c[currentMetric]).filter(v => v != null);
-  const extent = d3.extent(vals);
-  const maxAbs = Math.max(Math.abs(extent[0] || 0), Math.abs(extent[1] || 0), 0.01);
+  // Color scale — use ALL cells (unfiltered) for consistent bounds across ALL metrics
+  // Lift metrics share a single global range; rate metric has its own fixed range
+  const allLiftVals = [
+    ...DATA.cells.map(c => c.cooccur_sig_lift),
+    ...DATA.cells.map(c => c.cooccur_impr_lift),
+    ...DATA.cells.map(c => c.attr_sig_lift)
+  ].filter(v => v != null);
+  const liftMaxAbs = Math.max(Math.abs(d3.min(allLiftVals) || 0), Math.abs(d3.max(allLiftVals) || 0), 0.01);
 
-  const colorScale = d3.scaleDiverging()
-    .domain([-maxAbs, 0, maxAbs])
-    .interpolator(d3.interpolateRdYlGn);
+  const allRateVals = DATA.cells.map(c => c.cooccur_sig_rate).filter(v => v != null);
+  const rateMax = d3.max(allRateVals) || 1;
 
-  // For rate metrics (0-1), use sequential
   const isRate = currentMetric.includes('_rate');
-  let getColor;
+  let getColor, maxAbs;
   if (isRate) {
+    maxAbs = rateMax;
     const seqScale = d3.scaleSequential()
-      .domain([0, d3.max(vals) || 1])
+      .domain([0, rateMax])
       .interpolator(d3.interpolateYlGn);
     getColor = v => v == null ? '#333' : seqScale(v);
   } else {
+    maxAbs = liftMaxAbs;
+    const colorScale = d3.scaleDiverging()
+      .domain([-liftMaxAbs, 0, liftMaxAbs])
+      .interpolator(d3.interpolateRdYlGn);
     getColor = v => v == null ? '#333' : colorScale(v);
   }
+
+  // Filtered vals for reference
+  const vals = cells.map(c => c[currentMetric]).filter(v => v != null);
 
   // Build lookup
   const cellMap = {};
@@ -265,7 +320,8 @@ function render() {
         .attr('rx', 2)
         .on('mouseover', (event) => showTooltip(event, cell, drug, symptom))
         .on('mousemove', (event) => moveTooltip(event))
-        .on('mouseout', hideTooltip);
+        .on('mouseout', hideTooltip)
+        .on('click', () => showCellPanel(cell, drug, symptom, cells));
     });
   });
 
@@ -278,7 +334,8 @@ function render() {
       .attr('y', 0)
       .attr('text-anchor', 'start')
       .attr('transform', `rotate(-55, ${i * cellW + cellW / 2}, 0)`)
-      .text(drug.length > 24 ? drug.slice(0, 22) + '…' : drug);
+      .text(drug.length > 24 ? drug.slice(0, 22) + '…' : drug)
+      .on('click', () => showDrugPanel(drug, cells));
   });
 
   // Y axis (symptom names)
@@ -289,14 +346,15 @@ function render() {
       .attr('x', 0)
       .attr('y', i * cellH + cellH / 2 + 4)
       .attr('text-anchor', 'end')
-      .text(symptom);
+      .text(symptom)
+      .on('click', () => showSymptomPanel(symptom, cells));
   });
 
   // Legend
-  renderLegend(getColor, isRate, maxAbs, vals);
+  renderLegend(getColor, isRate, maxAbs, null);
 }
 
-function renderLegend(getColor, isRate, maxAbs, vals) {
+function renderLegend(getColor, isRate, maxAbs) {
   const legend = d3.select('#legend');
   legend.html('');
 
@@ -304,16 +362,15 @@ function renderLegend(getColor, isRate, maxAbs, vals) {
   const barWidth = 30;
 
   if (isRate) {
-    const max = d3.max(vals) || 1;
     for (let i = 0; i < steps; i++) {
-      const v = (i / (steps - 1)) * max;
+      const v = (i / (steps - 1)) * maxAbs;
       const div = document.createElement('div');
       div.className = 'legend-bar';
       div.style.width = barWidth + 'px';
       div.style.background = getColor(v);
       legend.node().appendChild(div);
     }
-    legend.node().insertAdjacentHTML('beforeend', `<span class="legend-label">0% → ${(d3.max(vals)*100).toFixed(0)}%</span>`);
+    legend.node().insertAdjacentHTML('beforeend', `<span class="legend-label">0% → ${(maxAbs*100).toFixed(0)}%</span>`);
   } else {
     for (let i = 0; i < steps; i++) {
       const v = -maxAbs + (i / (steps - 1)) * 2 * maxAbs;
@@ -335,6 +392,7 @@ function showTooltip(event, cell, drug, symptom) {
     const liftClass = v => v > 0 ? 'tt-lift-pos' : v < 0 ? 'tt-lift-neg' : 'tt-val';
     const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
     const liftPct = v => v != null ? (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+    const symInfo = DATA.symptoms.find(s => s.short === symptom);
 
     let html = `<div class="tt-drug">${drug}</div>`;
     html += `<div class="tt-symptom">${symptom}</div>`;
@@ -347,6 +405,11 @@ function showTooltip(event, cell, drug, symptom) {
       html += `<div><b class="tt-attr">Attributed</b> (N=${cell.attr_n})</div>`;
       html += `<div>Significant improvement: <span class="tt-val">${pct(cell.attr_sig_rate)}</span> · Lift: <span class="${liftClass(cell.attr_sig_lift)}">${liftPct(cell.attr_sig_lift)}</span></div>`;
     }
+    if (symInfo) {
+      html += `<div class="tt-sep"></div>`;
+      html += `<div style="color:#888;font-size:0.72rem;">Baseline (${symInfo.n} reports): sig ${pct(symInfo.sig_rate)} · any ${pct(symInfo.impr_rate)}</div>`;
+    }
+    html += `<div style="color:#555;font-size:0.68rem;margin-top:4px;">Click for details</div>`;
     tt.html(html);
   }
   tt.style('display', 'block');
@@ -366,6 +429,138 @@ function moveTooltip(event) {
 
 function hideTooltip() {
   d3.select('#tooltip').style('display', 'none');
+}
+
+// --- Side Panel ---
+
+function openSidePanel(html) {
+  const panel = document.getElementById('side-panel');
+  panel.innerHTML = html;
+  panel.classList.add('open');
+}
+
+function closeSidePanel() {
+  const panel = document.getElementById('side-panel');
+  panel.classList.remove('open');
+  panel.innerHTML = '';
+}
+
+function spHeader(title, subtitle) {
+  return `<div class="sp-header"><span class="sp-title">${title}</span><button class="sp-close" onclick="closeSidePanel()">✕</button></div>`
+    + (subtitle ? `<div class="sp-subtitle">${subtitle}</div>` : '');
+}
+
+function showDrugPanel(drug, cells) {
+  const drugCells = cells.filter(c => c.drug === drug && c[currentMetric] != null);
+  drugCells.sort((a, b) => (b[currentMetric] || 0) - (a[currentMetric] || 0));
+  const totalN = drugCells.reduce((acc, c) => acc + c.cooccur_n, 0);
+  const avgMetric = drugCells.length ? d3.mean(drugCells, c => c[currentMetric]) : 0;
+  const isRate = currentMetric.includes('_rate');
+  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const liftPct = v => v != null ? (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+  const liftClass = v => v > 0 ? 'sp-row-lift-pos' : v < 0 ? 'sp-row-lift-neg' : 'sp-row-val';
+
+  let html = spHeader(drug, `Total N: ${totalN} · Avg ${isRate ? 'rate' : 'lift'}: ${isRate ? pct(avgMetric) : liftPct(avgMetric)} · ${drugCells.length} symptoms`);
+  html += `<div class="sp-section"><div class="sp-section-title">Symptoms (ranked by current metric)</div>`;
+  drugCells.forEach(c => {
+    const val = c[currentMetric];
+    html += `<div class="sp-row"><span class="sp-row-name">${c.symptom}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+  });
+  html += `</div>`;
+  openSidePanel(html);
+}
+
+function showSymptomPanel(symptom, cells) {
+  const symCells = cells.filter(c => c.symptom === symptom && c[currentMetric] != null);
+  symCells.sort((a, b) => (b[currentMetric] || 0) - (a[currentMetric] || 0));
+  const symInfo = DATA.symptoms.find(s => s.short === symptom);
+  const isRate = currentMetric.includes('_rate');
+  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const liftPct = v => v != null ? (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+  const liftClass = v => v > 0 ? 'sp-row-lift-pos' : v < 0 ? 'sp-row-lift-neg' : 'sp-row-val';
+
+  const subtitle = symInfo ? `${symInfo.n} total reports · Baseline sig rate: ${pct(symInfo.sig_rate)} · Baseline any impr: ${pct(symInfo.impr_rate)}` : '';
+  let html = spHeader(symptom, subtitle);
+  html += `<div class="sp-section"><div class="sp-section-title">Drugs (ranked by current metric)</div>`;
+  symCells.forEach(c => {
+    const val = c[currentMetric];
+    html += `<div class="sp-row"><span class="sp-row-name">${c.drug}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+  });
+  html += `</div>`;
+  openSidePanel(html);
+}
+
+function showCellPanel(cell, drug, symptom, cells) {
+  if (!cell) return;
+  const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const liftPct = v => v != null ? (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+  const liftClass = v => v > 0 ? 'sp-row-lift-pos' : v < 0 ? 'sp-row-lift-neg' : 'sp-row-val';
+  const symInfo = DATA.symptoms.find(s => s.short === symptom);
+
+  // Rank this drug among all drugs for this symptom
+  const symCells = cells.filter(c => c.symptom === symptom && c[currentMetric] != null);
+  symCells.sort((a, b) => (b[currentMetric] || 0) - (a[currentMetric] || 0));
+  const drugRank = symCells.findIndex(c => c.drug === drug) + 1;
+
+  // Rank this symptom among all symptoms for this drug
+  const drugCells = cells.filter(c => c.drug === drug && c[currentMetric] != null);
+  drugCells.sort((a, b) => (b[currentMetric] || 0) - (a[currentMetric] || 0));
+  const symRank = drugCells.findIndex(c => c.symptom === symptom) + 1;
+
+  let html = spHeader(drug, symptom);
+
+  // Rankings
+  html += `<div class="sp-section"><div class="sp-section-title">Rankings (current metric)</div>`;
+  html += `<div class="sp-detail-grid">`;
+  html += `<span class="sp-detail-label">${drug} rank for ${symptom}</span><span class="sp-detail-val">#${drugRank} of ${symCells.length} drugs</span>`;
+  html += `<span class="sp-detail-label">${symptom} rank for ${drug}</span><span class="sp-detail-val">#${symRank} of ${drugCells.length} symptoms</span>`;
+  html += `</div></div>`;
+
+  // Co-occurrence stats
+  html += `<div class="sp-section"><div class="sp-section-title">Co-occurrence (N=${cell.cooccur_n})</div>`;
+  html += `<div class="sp-detail-grid">`;
+  html += `<span class="sp-detail-label">Significant improvement rate</span><span class="sp-detail-val">${pct(cell.cooccur_sig_rate)}</span>`;
+  html += `<span class="sp-detail-label">Significant improvement lift</span><span class="${liftClass(cell.cooccur_sig_lift)}">${liftPct(cell.cooccur_sig_lift)}</span>`;
+  html += `<span class="sp-detail-label">Any improvement rate</span><span class="sp-detail-val">${pct(cell.cooccur_impr_rate)}</span>`;
+  html += `<span class="sp-detail-label">Any improvement lift</span><span class="${liftClass(cell.cooccur_impr_lift)}">${liftPct(cell.cooccur_impr_lift)}</span>`;
+  html += `</div></div>`;
+
+  // Attributed stats
+  if (cell.attr_n) {
+    html += `<div class="sp-section"><div class="sp-section-title" style="color:#fc8;">Attributed (N=${cell.attr_n})</div>`;
+    html += `<div class="sp-detail-grid">`;
+    html += `<span class="sp-detail-label">Significant improvement rate</span><span class="sp-detail-val">${pct(cell.attr_sig_rate)}</span>`;
+    html += `<span class="sp-detail-label">Significant improvement lift</span><span class="${liftClass(cell.attr_sig_lift)}">${liftPct(cell.attr_sig_lift)}</span>`;
+    html += `</div></div>`;
+  }
+
+  // Symptom baseline context
+  if (symInfo) {
+    html += `<div class="sp-sep"></div>`;
+    html += `<div class="sp-section"><div class="sp-section-title">Symptom baseline (${symptom})</div>`;
+    html += `<div class="sp-detail-grid">`;
+    html += `<span class="sp-detail-label">Total reports with symptom</span><span class="sp-detail-val">${symInfo.n}</span>`;
+    html += `<span class="sp-detail-label">Baseline sig improvement rate</span><span class="sp-detail-val">${pct(symInfo.sig_rate)}</span>`;
+    html += `<span class="sp-detail-label">Baseline any improvement rate</span><span class="sp-detail-val">${pct(symInfo.impr_rate)}</span>`;
+    html += `</div></div>`;
+  }
+
+  // Top drugs for this symptom (mini leaderboard)
+  html += `<div class="sp-sep"></div>`;
+  html += `<div class="sp-section"><div class="sp-section-title">Top drugs for ${symptom}</div>`;
+  const isRate = currentMetric.includes('_rate');
+  symCells.slice(0, 8).forEach(c => {
+    const val = c[currentMetric];
+    const highlight = c.drug === drug ? ' style="background:#3a3a6a; border-radius:3px; padding:2px 4px; margin:-2px -4px;"' : '';
+    html += `<div class="sp-row"${highlight}><span class="sp-row-name">${c.drug}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+  });
+  if (drugRank > 8) {
+    html += `<div class="sp-row" style="color:#666;">…</div>`;
+    html += `<div class="sp-row" style="background:#3a3a6a; border-radius:3px; padding:2px 4px; margin:-2px -4px;"><span class="sp-row-name">#${drugRank} ${drug}</span><span class="sp-row-n">N=${cell.cooccur_n}</span><span class="${liftClass(cell[currentMetric])}">${isRate ? pct(cell[currentMetric]) : liftPct(cell[currentMetric])}</span></div>`;
+  }
+  html += `</div>`;
+
+  openSidePanel(html);
 }
 
 init();
