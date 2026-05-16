@@ -16,6 +16,7 @@ def build_outcomes(cur):
     cur.execute('''
         SELECT v.drug_name,
             COUNT(*) as total,
+            COUNT(DISTINCT v.report_id) as reports,
             SUM(CASE WHEN v.outcome = 'Complete symptom resolution' THEN 1 ELSE 0 END) as resolved,
             SUM(CASE WHEN v.outcome = 'Significant symptom improvement' THEN 1 ELSE 0 END) as significant,
             SUM(CASE WHEN v.outcome = 'Moderate symptom improvement' THEN 1 ELSE 0 END) as moderate,
@@ -32,10 +33,10 @@ def build_outcomes(cur):
     data = []
     for row in cur.fetchall():
         data.append({
-            'drug': row[0], 'total': row[1],
-            'resolved': row[2], 'significant': row[3],
-            'moderate': row[4], 'mild': row[5],
-            'unchanged': row[6], 'worsened': row[7]
+            'drug': row[0], 'total': row[1], 'reports': row[2],
+            'resolved': row[3], 'significant': row[4],
+            'moderate': row[5], 'mild': row[6],
+            'unchanged': row[7], 'worsened': row[8]
         })
     with open('drug_outcomes_viz_data.json', 'w') as f:
         json.dump(data, f, separators=(',', ':'))

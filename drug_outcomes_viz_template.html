@@ -290,7 +290,7 @@ function attachEvents() {
       const pctPos = Math.round((d.resolved + d.significant + d.moderate + d.mild) / d.total * 100);
       const pctSig = Math.round((d.resolved + d.significant) / d.total * 100);
       let lines = `<div class="drug-name">${d.drug}</div>`;
-      lines += `<div style="margin-bottom:6px;color:#aaa">Total outcomes: ${d.total} | ${pctPos}% positive | ${pctSig}% sig+resolved</div>`;
+      lines += `<div style="margin-bottom:6px;color:#aaa">${d.total} outcomes from ${d.reports} report${d.reports === 1 ? '' : 's'} | ${pctPos}% positive | ${pctSig}% sig+resolved</div>`;
       const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
       categories.forEach(cat => {
         const val = d[cat];
