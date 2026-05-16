@@ -37,3 +37,6 @@ findings.html
 raw_api_data
 cureid.db
 conversation_state.md
+
+# Generated markdown conversions (regenerate with doc2md.py)
+Documentation - For Reference/Exports - Conversions/
