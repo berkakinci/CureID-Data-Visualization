@@ -66,8 +66,6 @@ def build_outcomes(cur):
     # Build output with per-report average scores
     data = []
     for drug_name, counts in drug_counts.items():
-        if counts['total'] < 5:
-            continue
         n_reports = len(counts['reports'])
 
         # Compute per-report average scores
@@ -77,12 +75,14 @@ def build_outcomes(cur):
                 report_avgs.append(sum(scores) / len(scores))
 
         avg_score = sum(report_avgs) / len(report_avgs) if report_avgs else 0
+        sum_score = sum(report_avgs)
 
         data.append({
             'drug': drug_name,
             'total': counts['total'],
             'reports': n_reports,
             'avg_score': round(avg_score, 2),
+            'sum_score': round(sum_score, 2),
             'resolved': counts['resolved'],
             'significant': counts['significant'],
             'moderate': counts['moderate'],

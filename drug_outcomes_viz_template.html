@@ -107,6 +107,7 @@
       <option value="total">Total outcomes</option>
       <option value="reports">Total reports</option>
       <option value="avg-score" selected>Average score (per report)</option>
+      <option value="sum-score">Sum of scores (volume × quality)</option>
       <option value="pct-positive">% Any Improvement (mild through resolved)</option>
       <option value="pct-significant">% Significant Improvement</option>
       <option value="pct-resolved">% Complete Resolution</option>
@@ -115,7 +116,7 @@
     </select>
   </label>
   <label>Min reports:
-    <input type="range" id="min-reports" min="5" max="50" value="10">
+    <input type="range" id="min-reports" min="1" max="50" value="10">
     <span id="min-reports-val">10</span>
   </label>
   <label>
@@ -219,6 +220,7 @@ function render() {
     case 'total': filtered.sort((a, b) => b.total - a.total); break;
     case 'reports': filtered.sort((a, b) => b.reports - a.reports); break;
     case 'avg-score': filtered.sort((a, b) => b.avg_score - a.avg_score); break;
+    case 'sum-score': filtered.sort((a, b) => b.sum_score - a.sum_score); break;
     case 'pct-positive':
       filtered.sort((a, b) => {
         const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
@@ -272,6 +274,7 @@ function render() {
     let countLabel;
     if (!showPct) countLabel = `${d.total}`;
     else if (sortBy === 'avg-score') countLabel = `${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(1)}`;
+    else if (sortBy === 'sum-score') countLabel = `${d.sum_score > 0 ? '+' : ''}${d.sum_score.toFixed(0)}`;
     else if (sortBy === 'reports') countLabel = `${d.reports}`;
     else if (sortBy === 'pct-significant') countLabel = `${pctSig}%`;
     else if (sortBy === 'pct-resolved') countLabel = `${pctResolved}%`;
