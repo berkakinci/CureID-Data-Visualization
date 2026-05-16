@@ -132,11 +132,26 @@ def build_details(cur):
 def build_html():
     """Embed JSON data into the HTML template."""
     from pathlib import Path
+    from datetime import datetime
+
     template = Path('drug_outcomes_viz_template.html').read_text()
     data_json = Path('drug_outcomes_viz_data.json').read_text()
     details_json = Path('drug_outcomes_viz_details.json').read_text()
     inline = f'let DATA = {data_json};\nlet DETAILS = {details_json};'
     html = template.replace('/*__DATA_PLACEHOLDER__*/', inline)
+
+    # Inject metadata from DB
+    import sqlite3
+    conn = sqlite3.connect('cureid.db')
+    row = conn.execute(
+        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=1988"
+    ).fetchone()
+    conn.close()
+    count = row[0]
+    latest = datetime.fromisoformat(row[1].replace('Z', '+00:00')).strftime("%b %-d, %Y")
+    meta_str = f"Most recent report updated {latest} · {count} Long COVID reports"
+    html = html.replace('/*__META_PLACEHOLDER__*/', meta_str)
+
     Path('drug_outcomes_viz.html').write_text(html)
     size_kb = Path('drug_outcomes_viz.html').stat().st_size / 1024
     print(f'drug_outcomes_viz.html: {size_kb:.0f} KB (embedded data)')

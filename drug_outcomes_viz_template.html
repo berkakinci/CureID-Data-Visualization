@@ -60,19 +60,51 @@
   .case-count { color: #888; font-size: 12px; margin-bottom: 10px; }
   .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 150; }
   .overlay.open { display: block; }
+
+  .info-panel { margin-bottom: 16px; margin-left: auto; margin-right: auto; max-width: 720px; }
+  .info-panel summary { cursor: pointer; font-size: 0.85rem; color: #aac; padding: 4px 0; }
+  .info-panel summary:hover { color: #ccf; }
+  .info-content { background: #22223a; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-top: 8px; font-size: 0.8rem; line-height: 1.6; max-width: 720px; }
+  .info-content h4 { color: #ccc; margin: 12px 0 4px; font-size: 0.82rem; }
+  .info-content dl { margin: 0 0 8px 0; }
+  .info-content dt { color: #8cf; font-weight: 600; margin-top: 6px; }
+  .info-content dd { color: #bbb; margin-left: 12px; margin-bottom: 4px; }
+  .info-content p { color: #bbb; margin: 6px 0; }
 </style>
 </head>
 <body>
 
 <h1>Long COVID Drug Outcomes</h1>
-<p class="subtitle">CureID patient-reported symptom outcomes by drug — click a bar for case details</p>
+<p class="subtitle">CureID patient-reported symptom outcomes by drug — click a bar for case details<br><span style="font-size:12px; color:#666;">/*__META_PLACEHOLDER__*/</span></p>
+
+<details class="info-panel">
+<summary>ℹ️ How to read this chart</summary>
+<div class="info-content">
+<p><b>What it shows:</b> Each bar represents one drug. The stacked segments show the distribution of patient-reported symptom outcomes across all symptoms treated with that drug. Hover the legend swatches for outcome definitions.</p>
+
+<h4>Controls</h4>
+<dl>
+<dt>Sort by</dt>
+<dd>Orders the drug list by the selected metric. "Any Improvement" = mild + moderate + significant + resolved. "Significant Improvement" = significant + resolved only.</dd>
+
+<dt>Min reports</dt>
+<dd>Minimum number of symptom-outcome reports for a drug to appear. Higher = fewer drugs shown but more reliable distributions.</dd>
+
+<dt>Show as %</dt>
+<dd>Toggle between percentage view (bar width = proportion) and absolute count view.</dd>
+</dl>
+
+<h4>Drill-down</h4>
+<p>Click any bar to open a panel listing individual case reports for that drug, with demographics, illness duration, and per-symptom outcomes attributed to the drug.</p>
+</div>
+</details>
 
 <div class="controls">
   <label>Sort by:
     <select id="sort-select">
       <option value="total">Total reports</option>
-      <option value="pct-positive">% Positive outcome</option>
-      <option value="pct-significant" selected>% Significant + Resolved</option>
+      <option value="pct-positive">% Any Improvement (mild through resolved)</option>
+      <option value="pct-significant" selected>% Significant Improvement</option>
       <option value="pct-resolved">% Complete Resolution</option>
       <option value="pct-worsened">% Worsened (ascending)</option>
       <option value="alpha">Alphabetical</option>
@@ -88,12 +120,12 @@
 </div>
 
 <div class="legend">
-  <div class="legend-item"><div class="legend-swatch" style="background:#2ecc71"></div>Resolved</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Significant</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#82c91e"></div>Moderate</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#f1c40f"></div>Mild</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#7f8c8d"></div>Unchanged</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Worsened</div>
+  <div class="legend-item" title="Patient reported complete symptom resolution attributed to this drug"><div class="legend-swatch" style="background:#2ecc71"></div>Resolved</div>
+  <div class="legend-item" title="Significant symptom improvement — noticeable, meaningful change"><div class="legend-swatch" style="background:#27ae60"></div>Significant</div>
+  <div class="legend-item" title="Moderate improvement — some benefit but symptom persists"><div class="legend-swatch" style="background:#82c91e"></div>Moderate</div>
+  <div class="legend-item" title="Mild improvement — minimal change noticed"><div class="legend-swatch" style="background:#f1c40f"></div>Mild</div>
+  <div class="legend-item" title="No change in symptom after treatment"><div class="legend-swatch" style="background:#7f8c8d"></div>Unchanged</div>
+  <div class="legend-item" title="Symptom got worse during or after treatment with this drug"><div class="legend-swatch" style="background:#e74c3c"></div>Worsened</div>
 </div>
 
 <div id="chart-container">
@@ -182,16 +214,32 @@ function render() {
   switch(sortBy) {
     case 'total': filtered.sort((a, b) => b.total - a.total); break;
     case 'pct-positive':
-      filtered.sort((a, b) => (b.resolved+b.significant+b.moderate+b.mild)/b.total - (a.resolved+a.significant+a.moderate+a.mild)/a.total);
+      filtered.sort((a, b) => {
+        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
+        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
+        return (b.resolved+b.significant+b.moderate+b.mild)/tB - (a.resolved+a.significant+a.moderate+a.mild)/tA;
+      });
       break;
     case 'pct-significant':
-      filtered.sort((a, b) => (b.resolved+b.significant)/b.total - (a.resolved+a.significant)/a.total);
+      filtered.sort((a, b) => {
+        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
+        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
+        return (b.resolved+b.significant)/tB - (a.resolved+a.significant)/tA;
+      });
       break;
     case 'pct-resolved':
-      filtered.sort((a, b) => b.resolved/b.total - a.resolved/a.total);
+      filtered.sort((a, b) => {
+        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
+        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
+        return b.resolved/tB - a.resolved/tA;
+      });
       break;
     case 'pct-worsened':
-      filtered.sort((a, b) => a.worsened/a.total - b.worsened/b.total);
+      filtered.sort((a, b) => {
+        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
+        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
+        return a.worsened/tA - b.worsened/tB;
+      });
       break;
     case 'alpha': filtered.sort((a, b) => a.drug.localeCompare(b.drug)); break;
   }
