@@ -71,11 +71,49 @@ def build_outcomes(cur, name_map):
     for drug_name, counts in drug_counts.items():
         n_reports = len(counts['reports'])
 
-        # Compute per-report average scores
+        # Compute per-report average scores and per-report threshold counts
         report_avgs = []
+        rpt_positive = 0  # any symptom mild+ improvement
+        rpt_significant = 0  # any symptom significant or resolved
+        rpt_resolved = 0  # any symptom resolved
+        rpt_worsened = 0  # any symptom worsened
+
+        # Per-report quantized outcome counts (one vote per report, based on avg score)
+        rpt_resolved_q = 0
+        rpt_significant_q = 0
+        rpt_moderate_q = 0
+        rpt_mild_q = 0
+        rpt_unchanged_q = 0
+        rpt_worsened_q = 0
+
         for report_id, scores in drug_report_scores[drug_name].items():
             if scores:
-                report_avgs.append(sum(scores) / len(scores))
+                avg = sum(scores) / len(scores)
+                report_avgs.append(avg)
+                max_score = max(scores)
+                min_score = min(scores)
+                if max_score >= 0.5:  # mild or better
+                    rpt_positive += 1
+                if max_score >= 2:  # significant or resolved
+                    rpt_significant += 1
+                if max_score >= 3:  # resolved
+                    rpt_resolved += 1
+                if min_score < 0:  # any worsening
+                    rpt_worsened += 1
+
+                # Quantize avg score to nearest outcome bucket
+                if avg >= 2.5:
+                    rpt_resolved_q += 1
+                elif avg >= 1.5:
+                    rpt_significant_q += 1
+                elif avg >= 0.75:
+                    rpt_moderate_q += 1
+                elif avg >= 0.25:
+                    rpt_mild_q += 1
+                elif avg >= -0.25:
+                    rpt_unchanged_q += 1
+                else:
+                    rpt_worsened_q += 1
 
         avg_score = sum(report_avgs) / len(report_avgs) if report_avgs else 0
         sum_score = sum(report_avgs)
@@ -92,6 +130,16 @@ def build_outcomes(cur, name_map):
             'mild': counts['mild'],
             'unchanged': counts['unchanged'],
             'worsened': counts['worsened'],
+            'rpt_positive': rpt_positive,
+            'rpt_significant': rpt_significant,
+            'rpt_resolved': rpt_resolved,
+            'rpt_worsened': rpt_worsened,
+            'rpt_resolved_q': rpt_resolved_q,
+            'rpt_significant_q': rpt_significant_q,
+            'rpt_moderate_q': rpt_moderate_q,
+            'rpt_mild_q': rpt_mild_q,
+            'rpt_unchanged_q': rpt_unchanged_q,
+            'rpt_worsened_q': rpt_worsened_q,
         })
 
     data.sort(key=lambda d: -d['total'])

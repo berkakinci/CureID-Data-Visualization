@@ -80,24 +80,26 @@
 <details class="info-panel">
 <summary>ℹ️ How to read this chart</summary>
 <div class="info-content">
-<p><b>What it shows:</b> Each bar represents one drug. The stacked segments show the distribution of patient-<em>attributed</em> symptom outcomes — only outcomes where the patient explicitly credited this drug for the change. Hover the legend swatches for outcome definitions.</p>
+<p><b>What it shows:</b> Each bar represents one drug. Each segment represents one patient report, quantized into an outcome bucket based on the report's <em>average</em> attributed symptom score. This gives each patient one vote regardless of how many symptoms they reported.</p>
 
-<p><b>Average score:</b> Each symptom outcome is scored (resolution=+3, significant=+2, moderate=+1, mild=+0.5, unchanged=0, worsening=-0.5 to -2). Per report, scores are averaged across attributed symptoms. The drug's avg score is the mean across all its reports — giving each patient equal weight regardless of how many symptoms they reported.</p>
+<p><b>Scoring:</b> Each symptom outcome is scored (resolution=+3, significant=+2, moderate=+1, mild=+0.5, unchanged=0, worsening=-0.5 to -2). A report's score is the average across all symptoms the patient attributed to that drug. The average is then quantized back to the nearest outcome label for the bar segment color.</p>
+
+<p><b>Quantization thresholds:</b> avg ≥ 2.5 → Resolved, ≥ 1.5 → Significant, ≥ 0.75 → Moderate, ≥ 0.25 → Mild, ≥ -0.25 → Unchanged, &lt; -0.25 → Worsened.</p>
 
 <h4>Controls</h4>
 <dl>
 <dt>Sort by</dt>
-<dd>Orders the drug list by the selected metric. "Sum of scores" rewards both quality and volume. "Average score" gives each patient equal weight. Percentage sorts use only the tracked outcome categories.</dd>
+<dd>Orders the drug list by the selected metric. "Sum of scores" rewards both quality and volume (default). "Average score" gives each patient equal weight. Percentage sorts rank by the fraction of reports in that outcome tier or better.</dd>
 
 <dt>Min reports</dt>
 <dd>Minimum number of unique patient reports for a drug to appear. Higher = fewer drugs shown but more reliable estimates.</dd>
 
 <dt>Normalize bars</dt>
-<dd>When checked, all bars fill the full width (showing outcome distribution as proportions). When unchecked, bar length scales with total outcomes — longer bars = more data. Label shows report count in absolute mode, sort metric in normalized mode.</dd>
+<dd>When checked, all bars fill the full width (proportional view). When unchecked, bar length scales with number of reports — longer bars = more data. Auto-toggles based on sort selection.</dd>
 </dl>
 
 <h4>Drill-down</h4>
-<p>Click any bar to open a panel listing individual case reports for that drug, with demographics, illness duration, and per-symptom outcomes attributed to the drug.</p>
+<p>Click any bar to open a panel listing individual case reports for that drug, with demographics, illness duration, and per-symptom outcomes attributed to the drug. Cases are sorted by their average score.</p>
 </div>
 </details>
 
@@ -109,6 +111,7 @@
       <option value="avg-score">Average score (per report)</option>
       <option value="sum-score" selected>Sum of scores (volume × quality)</option>
       <option value="pct-positive">% Any Improvement (mild through resolved)</option>
+      <option value="pct-moderate">% Moderate+ Improvement</option>
       <option value="pct-significant">% Significant Improvement</option>
       <option value="pct-resolved">% Complete Resolution</option>
       <option value="pct-worsened">% Worsened (ascending)</option>
@@ -223,30 +226,43 @@ function render() {
     case 'sum-score': filtered.sort((a, b) => b.sum_score - a.sum_score); break;
     case 'pct-positive':
       filtered.sort((a, b) => {
-        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
-        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
-        return (b.resolved+b.significant+b.moderate+b.mild)/tB - (a.resolved+a.significant+a.moderate+a.mild)/tA;
+        const qA = a.rpt_resolved_q + a.rpt_significant_q + a.rpt_moderate_q + a.rpt_mild_q;
+        const qB = b.rpt_resolved_q + b.rpt_significant_q + b.rpt_moderate_q + b.rpt_mild_q;
+        const tA = qA + a.rpt_unchanged_q + a.rpt_worsened_q;
+        const tB = qB + b.rpt_unchanged_q + b.rpt_worsened_q;
+        return (tB ? qB/tB : 0) - (tA ? qA/tA : 0);
+      });
+      break;
+    case 'pct-moderate':
+      filtered.sort((a, b) => {
+        const qA = a.rpt_resolved_q + a.rpt_significant_q + a.rpt_moderate_q;
+        const qB = b.rpt_resolved_q + b.rpt_significant_q + b.rpt_moderate_q;
+        const tA = qA + a.rpt_mild_q + a.rpt_unchanged_q + a.rpt_worsened_q;
+        const tB = qB + b.rpt_mild_q + b.rpt_unchanged_q + b.rpt_worsened_q;
+        return (tB ? qB/tB : 0) - (tA ? qA/tA : 0);
       });
       break;
     case 'pct-significant':
       filtered.sort((a, b) => {
-        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
-        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
-        return (b.resolved+b.significant)/tB - (a.resolved+a.significant)/tA;
+        const qA = a.rpt_resolved_q + a.rpt_significant_q;
+        const qB = b.rpt_resolved_q + b.rpt_significant_q;
+        const tA = a.rpt_resolved_q + a.rpt_significant_q + a.rpt_moderate_q + a.rpt_mild_q + a.rpt_unchanged_q + a.rpt_worsened_q;
+        const tB = b.rpt_resolved_q + b.rpt_significant_q + b.rpt_moderate_q + b.rpt_mild_q + b.rpt_unchanged_q + b.rpt_worsened_q;
+        return (tB ? qB/tB : 0) - (tA ? qA/tA : 0);
       });
       break;
     case 'pct-resolved':
       filtered.sort((a, b) => {
-        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
-        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
-        return b.resolved/tB - a.resolved/tA;
+        const tA = a.rpt_resolved_q + a.rpt_significant_q + a.rpt_moderate_q + a.rpt_mild_q + a.rpt_unchanged_q + a.rpt_worsened_q;
+        const tB = b.rpt_resolved_q + b.rpt_significant_q + b.rpt_moderate_q + b.rpt_mild_q + b.rpt_unchanged_q + b.rpt_worsened_q;
+        return (tB ? b.rpt_resolved_q/tB : 0) - (tA ? a.rpt_resolved_q/tA : 0);
       });
       break;
     case 'pct-worsened':
       filtered.sort((a, b) => {
-        const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
-        const tB = b.resolved+b.significant+b.moderate+b.mild+b.unchanged+b.worsened;
-        return a.worsened/tA - b.worsened/tB;
+        const tA = a.rpt_resolved_q + a.rpt_significant_q + a.rpt_moderate_q + a.rpt_mild_q + a.rpt_unchanged_q + a.rpt_worsened_q;
+        const tB = b.rpt_resolved_q + b.rpt_significant_q + b.rpt_moderate_q + b.rpt_mild_q + b.rpt_unchanged_q + b.rpt_worsened_q;
+        return (tA ? a.rpt_worsened_q/tA : 0) - (tB ? b.rpt_worsened_q/tB : 0);
       });
       break;
     case 'alpha': filtered.sort((a, b) => a.drug.localeCompare(b.drug)); break;
@@ -257,32 +273,38 @@ function render() {
 
   // For absolute mode: find max tracked total to scale bar widths
   const maxTracked = showPct ? 1 : Math.max(...filtered.map(d => {
-    const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
-    return categories.reduce((sum, cat) => sum + d[cat], 0);
+    const qCategories = ['rpt_resolved_q', 'rpt_significant_q', 'rpt_moderate_q', 'rpt_mild_q', 'rpt_unchanged_q', 'rpt_worsened_q'];
+    return qCategories.reduce((sum, cat) => sum + d[cat], 0);
   }));
 
   filtered.forEach(d => {
-    const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
-    const trackedTotal = categories.reduce((sum, cat) => sum + d[cat], 0);
-    const barWidth = showPct ? 100 : (trackedTotal / maxTracked * 100);
+    const qCategories = ['rpt_resolved_q', 'rpt_significant_q', 'rpt_moderate_q', 'rpt_mild_q', 'rpt_unchanged_q', 'rpt_worsened_q'];
+    const catColors = [COLORS.resolved, COLORS.significant, COLORS.moderate, COLORS.mild, COLORS.unchanged, COLORS.worsened];
+    const qTotal = qCategories.reduce((sum, cat) => sum + d[cat], 0);
+
+    // Use quantized (per-report) counts for bar segments
+    const barTotal = qTotal;
+    const barWidth = showPct ? 100 : (barTotal / maxTracked * 100);
     let segments = '';
 
-    categories.forEach(cat => {
+    qCategories.forEach((cat, i) => {
       const val = d[cat];
       if (val === 0) return;
-      const width = val / trackedTotal * barWidth;
-      segments += `<div class="bar-segment" style="width:${width}%;background:${COLORS[cat]}"></div>`;
+      const width = val / barTotal * barWidth;
+      segments += `<div class="bar-segment" style="width:${width}%;background:${catColors[i]}"></div>`;
     });
 
-    const pctPositive = Math.round((d.resolved + d.significant + d.moderate + d.mild) / trackedTotal * 100);
-    const pctSig = Math.round((d.resolved + d.significant) / trackedTotal * 100);
-    const pctResolved = Math.round(d.resolved / trackedTotal * 100);
+    const pctPositive = qTotal > 0 ? Math.round((d.rpt_resolved_q + d.rpt_significant_q + d.rpt_moderate_q + d.rpt_mild_q) / qTotal * 100) : 0;
+    const pctModerate = qTotal > 0 ? Math.round((d.rpt_resolved_q + d.rpt_significant_q + d.rpt_moderate_q) / qTotal * 100) : 0;
+    const pctSig = qTotal > 0 ? Math.round((d.rpt_resolved_q + d.rpt_significant_q) / qTotal * 100) : 0;
+    const pctResolved = qTotal > 0 ? Math.round(d.rpt_resolved_q / qTotal * 100) : 0;
     const label = d.drug.length > 40 ? d.drug.substring(0, 38) + '…' : d.drug;
     let countLabel;
     if (!showPct) countLabel = `${d.reports} rpts`;
     else if (sortBy === 'avg-score') countLabel = `${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(1)}`;
     else if (sortBy === 'sum-score') countLabel = `${d.sum_score > 0 ? '+' : ''}${d.sum_score.toFixed(0)}`;
     else if (sortBy === 'reports') countLabel = `${d.reports}`;
+    else if (sortBy === 'pct-moderate') countLabel = `${pctModerate}%`;
     else if (sortBy === 'pct-significant') countLabel = `${pctSig}%`;
     else if (sortBy === 'pct-resolved') countLabel = `${pctResolved}%`;
     else countLabel = `${pctPositive}%`;
@@ -305,16 +327,20 @@ function attachEvents() {
   chart.querySelectorAll('.bar-row').forEach(row => {
     row.addEventListener('mouseenter', (e) => {
       const d = JSON.parse(row.dataset.drug);
-      const pctPos = Math.round((d.resolved + d.significant + d.moderate + d.mild) / d.total * 100);
-      const pctSig = Math.round((d.resolved + d.significant) / d.total * 100);
+      const pctPos = Math.round(d.rpt_positive / d.reports * 100);
+      const pctSig = Math.round(d.rpt_significant / d.reports * 100);
       let lines = `<div class="drug-name">${d.drug}</div>`;
-      lines += `<div style="margin-bottom:4px;color:#aaa">${d.total} outcomes from ${d.reports} report${d.reports === 1 ? '' : 's'}</div>`;
-      lines += `<div style="margin-bottom:6px;color:#8cf">Avg score: ${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(2)} · ${pctPos}% positive · ${pctSig}% sig+resolved</div>`;
-      const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
-      categories.forEach(cat => {
+      lines += `<div style="margin-bottom:4px;color:#aaa">${d.reports} report${d.reports === 1 ? '' : 's'} (${d.total} symptom outcomes)</div>`;
+      lines += `<div style="margin-bottom:6px;color:#8cf">Avg score: ${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(2)} · ${pctPos}% reports improved · ${pctSig}% reports sig+resolved</div>`;
+      const qCategories = ['rpt_resolved_q', 'rpt_significant_q', 'rpt_moderate_q', 'rpt_mild_q', 'rpt_unchanged_q', 'rpt_worsened_q'];
+      const qLabels = ['Resolved', 'Significant', 'Moderate', 'Mild', 'Unchanged', 'Worsened'];
+      const qColors = [COLORS.resolved, COLORS.significant, COLORS.moderate, COLORS.mild, COLORS.unchanged, COLORS.worsened];
+      const qTotal = qCategories.reduce((sum, cat) => sum + d[cat], 0);
+      lines += `<div style="margin-bottom:4px;color:#999;font-size:11px">Reports quantized from average outcome:</div>`;
+      qCategories.forEach((cat, i) => {
         const val = d[cat];
-        const pct = Math.round(val / d.total * 100);
-        lines += `<div class="outcome-line"><span class="outcome-label"><span class="dot" style="background:${COLORS[cat]}"></span>${LABELS[cat]}</span><span>${val} (${pct}%)</span></div>`;
+        const pct = qTotal > 0 ? Math.round(val / qTotal * 100) : 0;
+        lines += `<div class="outcome-line"><span class="outcome-label"><span class="dot" style="background:${qColors[i]}"></span>${qLabels[i]}</span><span>${val} (${pct}%)</span></div>`;
       });
       lines += `<div style="margin-top:8px;color:#6ea8fe;font-size:11px">Click for case details →</div>`;
       tooltip.innerHTML = lines;
@@ -351,6 +377,29 @@ function openPanel(drugName) {
   renderCases(drugName);
 }
 
+const SCORE_MAP = {
+  'resolved': 3, 'Sig impr': 2, 'Mod impr': 1, 'Mild impr': 0.5,
+  'unchanged': 0, 'Mild worse': -0.5, 'Mod worse': -1, 'Sig worse': -2
+};
+
+function caseScore(c) {
+  const sx = c.sx || [];
+  if (sx.length === 0) return 0;
+  let total = 0;
+  for (const s of sx) {
+    const o = s.o || '';
+    if (o.includes('resolved')) total += 3;
+    else if (o.includes('Sig impr')) total += 2;
+    else if (o.includes('Mod impr')) total += 1;
+    else if (o.includes('Mild impr')) total += 0.5;
+    else if (o.includes('Sig worse')) total -= 2;
+    else if (o.includes('Mod worse')) total -= 1;
+    else if (o.includes('Mild worse')) total -= 0.5;
+    // unchanged = 0
+  }
+  return total / sx.length;
+}
+
 function renderCases(drugName) {
   const cases = DETAILS[drugName] || [];
   const sortMode = document.getElementById('panel-sort').value;
@@ -358,10 +407,10 @@ function renderCases(drugName) {
   let sorted = [...cases];
   switch(sortMode) {
     case 'outcome-best':
-      sorted.sort((a, b) => (OUTCOME_ORDER[a.outcome] || 2) - (OUTCOME_ORDER[b.outcome] || 2));
+      sorted.sort((a, b) => caseScore(b) - caseScore(a));
       break;
     case 'outcome-worst':
-      sorted.sort((a, b) => (OUTCOME_ORDER[b.outcome] || 2) - (OUTCOME_ORDER[a.outcome] || 2));
+      sorted.sort((a, b) => caseScore(a) - caseScore(b));
       break;
     case 'symptoms-most':
       sorted.sort((a, b) => (b.sx || []).length - (a.sx || []).length);
@@ -423,7 +472,7 @@ document.getElementById('panel-sort').addEventListener('change', () => {
 document.getElementById('sort-select').addEventListener('change', () => {
   const sortBy = document.getElementById('sort-select').value;
   const showPctCheckbox = document.getElementById('show-pct');
-  if (['pct-positive', 'pct-significant', 'pct-resolved', 'pct-worsened', 'avg-score'].includes(sortBy)) {
+  if (['pct-positive', 'pct-moderate', 'pct-significant', 'pct-resolved', 'pct-worsened', 'avg-score'].includes(sortBy)) {
     showPctCheckbox.checked = true;
   } else {
     showPctCheckbox.checked = false;

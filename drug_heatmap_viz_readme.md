@@ -40,6 +40,10 @@ Configured in `drug_heatmap_build.py`:
 - Drugs must have ≥5 co-occurring reports per symptom
 - Drugs must appear across ≥3 symptoms to be included
 
+## Drug name normalization
+
+All drug names are normalized via `normalize_name()` from `normalize_drugs.py` — programmatic cleanup (strip parenthetical brand names, dosage info, salt forms) followed by `drug_name_map` table lookup. Same normalization path used by the bar chart and efficacy scripts.
+
 ## Architecture
 
 Single HTML file. D3 v7 loaded from CDN (requires internet connection). Data is embedded inline by the build script. Template uses placeholder comments that get replaced with JSON data and metadata during build.
