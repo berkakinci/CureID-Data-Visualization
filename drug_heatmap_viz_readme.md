@@ -28,7 +28,7 @@ python drug_heatmap_build.py
   - Click a **drug name** (column header) → drug summary across all symptoms, ranked by current metric, with total N and average.
   - Click a **symptom name** (row label) → all drugs ranked for that symptom, plus symptom baseline rates.
   - Click a **cell** → full detail: rankings, outcome distribution bar, all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.
-- **Drill-down to cases**: click any **N= value** (dotted underline) or the outcome distribution bar → detail pane opens as a second column showing individual case reports. Two-pane layout keeps stats visible on the left while browsing cases on the right. Case cards show demographics, outcome (color-coded), full drug regimen (target highlighted), other symptom outcomes, and CureID link. Sortable: best/worst outcome, fewest symptoms, fewest drugs.
+- **Drill-down to cases**: click any **N= value** (dotted underline) or the outcome distribution bar → detail pane opens as a second column showing individual case reports. Two-pane layout keeps stats visible on the left while browsing cases on the right. Case cards show demographics, full drug regimen (target highlighted), symptom outcomes (target symptom at top with background highlight, then others), and CureID link. Sortable: best/worst outcome, fewest symptoms, fewest drugs.
 - **Info panel**: collapsible explanation of all metrics, controls, and interactions.
 - **Data freshness**: subtitle shows most recent report date and count, derived from DB at build time.
 

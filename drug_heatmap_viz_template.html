@@ -81,6 +81,8 @@ svg { display: block; }
 .case-drugs b { color: #fc8; font-weight: 600; }
 .case-sx { margin-top: 4px; font-size: 0.7rem; color: #888; }
 .case-sx-line { display: flex; gap: 6px; }
+.case-sx-target { font-weight: 600; color: #ccc; }
+.case-sx-target-bg { background: #3a3a6a; border-radius: 3px; padding: 2px 6px; margin: 0 -6px 2px; font-weight: 600; color: #ccc; }
 .case-link { font-size: 0.68rem; color: #6ea8fe; text-decoration: none; }
 .case-link:hover { text-decoration: underline; }
 .sp-back { background: none; border: 1px solid #555; color: #aaa; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; margin-bottom: 10px; }
@@ -161,7 +163,7 @@ svg { display: block; }
 
 <h4>Drill-down to cases</h4>
 <p><b>Click any N= value</b> (dotted underline) or the outcome distribution bar to open the detail pane — a second column showing individual case reports for that drug × symptom pair. The panel expands to show both the stats (left) and cases (right) side by side.</p>
-<p>Each case card shows: demographics, symptom outcome (color-coded), full drug regimen (target drug highlighted), other symptom outcomes, and a link to the full report on CureID.</p>
+<p>Each case card shows: demographics, symptom outcomes (target symptom highlighted at top, then others), full drug regimen (target drug highlighted), and a link to the full report on CureID.</p>
 <p>Sort cases by: best outcome first, worst outcome first, fewest symptoms, or fewest drugs in regimen. "← Back" collapses the detail pane.</p>
 
 <h4>Color scale</h4>
@@ -189,8 +191,8 @@ svg { display: block; }
   </div>
   <div>
     <label>Sort drugs by:</label>
-    <button id="sort-wavg" class="active" title="Σ(metric × N) / Σ(N) across all symptoms for each drug. Higher-N estimates contribute more.">N-weighted avg</button>
-    <button id="sort-bayes" title="mean(metric) × totalN / (totalN + priorN), where priorN = median totalN across all drugs. Shrinks low-N drugs toward zero.">Bayesian</button>
+    <button id="sort-wavg" title="Σ(metric × N) / Σ(N) across all symptoms for each drug. Higher-N estimates contribute more.">N-weighted avg</button>
+    <button id="sort-bayes" class="active" title="mean(metric) × totalN / (totalN + priorN), where priorN = median totalN across all drugs. Shrinks low-N drugs toward zero.">Bayesian</button>
     <button id="sort-avg" title="Σ(metric) / count(symptoms) — simple unweighted mean, each symptom counts equally.">Avg lift</button>
     <button id="sort-max" title="max(metric) across all symptoms — best single-symptom value for each drug.">Max lift</button>
     <button id="sort-alpha" title="Alphabetical order (A → Z)">A-Z</button>
@@ -212,7 +214,7 @@ svg { display: block; }
 
 let currentMetric = 'cooccur_sig_lift';
 let currentMinN = 8;
-let currentSort = 'wavg';
+let currentSort = 'bayes';
 
 const cellW = 18, cellH = 28;
 const marginLeft = 180, marginTop = 160, marginRight = 20, marginBottom = 20;
@@ -727,7 +729,7 @@ function renderReportList(symptom, drug, title, sortMode) {
     const outcomeClass = `case-outcome-${r.cellOutcome}`;
     const outcomeLabel = OUTCOME_LABELS[r.cellOutcome] || r.cellOutcome;
     html += `<div class="case-card">`;
-    html += `<div class="case-header"><span class="case-demo">${r.sex} · ${r.age} · ${r.country}</span><span class="case-outcome ${outcomeClass}">${outcomeLabel}</span></div>`;
+    html += `<div class="case-header"><span class="case-demo">${r.sex} · ${r.age} · ${r.country}</span></div>`;
 
     // Highlight the target drug in the drug list
     const drugList = r.drugs.map(d => {
@@ -737,16 +739,15 @@ function renderReportList(symptom, drug, title, sortMode) {
     }).join(', ');
     if (drugList) html += `<div class="case-drugs">${drugList}</div>`;
 
-    // Other symptom outcomes (excluding the target)
+    // Symptom outcomes — target symptom first with highlight
+    html += `<div class="case-sx">`;
+    html += `<div class="case-sx-line case-sx-target-bg"><span class="case-outcome-${r.cellOutcome}">${outcomeLabel}</span> <span>${symptom}</span></div>`;
     const otherSx = r.sx.filter(s => s.s !== symptom);
-    if (otherSx.length) {
-      html += `<div class="case-sx">`;
-      otherSx.slice(0, 5).forEach(s => {
-        html += `<div class="case-sx-line"><span class="case-outcome-${s.o}">${OUTCOME_LABELS[s.o] || s.o}</span> <span>${s.s}</span></div>`;
-      });
-      if (otherSx.length > 5) html += `<div class="case-sx-line" style="color:#555;">+${otherSx.length - 5} more symptoms</div>`;
-      html += `</div>`;
-    }
+    otherSx.slice(0, 5).forEach(s => {
+      html += `<div class="case-sx-line"><span class="case-outcome-${s.o}">${OUTCOME_LABELS[s.o] || s.o}</span> <span>${s.s}</span></div>`;
+    });
+    if (otherSx.length > 5) html += `<div class="case-sx-line" style="color:#555;">+${otherSx.length - 5} more symptoms</div>`;
+    html += `</div>`;
 
     // CureID link
     html += `<a class="case-link" href="${CUREID_BASE}${r.id}" target="_blank" rel="noopener">View on CureID →</a>`;
