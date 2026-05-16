@@ -267,3 +267,12 @@ All cached in `raw_api_data/` to avoid re-fetching.
 - Rate limiting: none observed at our request rate (~2 req/sec with 0.3-0.5s delays)
 - The `sort=latest` param works
 - WebSocket at `cure-api.ncats.io/ws` — purpose unknown, not explored
+
+## Other Endpoints (not downloaded)
+
+The API also serves discussions (5), articles (34), and events (2) for Long COVID. These are associated with the disease, not linked to individual reports. Content is community forum posts, curated literature links, and conference listings — qualitative context, not structured patient data. Not downloaded since they don't feed into the quantitative analysis.
+
+Browse on the web:
+- Discussions: https://cure.ncats.io/explore/long-covid/discussions
+- Articles: https://cure.ncats.io/explore/long-covid/articles
+- Events: https://cure.ncats.io/explore/long-covid/events

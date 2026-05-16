@@ -40,7 +40,7 @@ See `findings.md` for the full write-up: demographics, top symptoms, drug effica
 
 ## Visualization
 
-Open `drug_outcomes_viz.html` in a browser — self-contained stacked bar chart of drug→outcome data. Sort by % positive, % significant, % resolved, or % worsened. Hover for details. Adjust minimum report threshold with the slider.
+Open `drug_outcomes_viz.html` in a browser. Stacked bar chart of drug→outcome data with sort options, min-report slider, hover tooltips, and click-to-drill-down into individual case reports (with links to CureID). See `drug_outcomes_viz_readme.md` for details. Regenerate data with `python drug_outcomes_viz_build.py`.
 
 ## Data source
 

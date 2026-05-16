@@ -1,0 +1,6 @@
+# Generated viz data (regenerate with drug_outcomes_viz_build.py)
+*_viz_data.json
+*_viz_details.json
+
+# Generated HTML (regenerate with pandoc)
+findings.html
