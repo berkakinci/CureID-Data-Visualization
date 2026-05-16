@@ -44,7 +44,7 @@ Open `drug_outcomes_viz.html` in a browser. Stacked bar chart of drug→outcome 
 
 ### Heatmap
 
-Open `drug_heatmap_viz.html` in a browser. Interactive D3 heatmap of symptom × drug efficacy (co-occurrence significant improvement lift vs. baseline). Controls for metric selection, min-N filtering, and drug sort order. Hover for full co-occurrence + attributed stats. Regenerate with `python drug_heatmap_build.py` (embeds data into HTML from template).
+Open `drug_heatmap_viz.html` in a browser. Interactive D3 heatmap of symptom × drug efficacy (co-occurrence significant improvement lift vs. baseline). Controls for metric selection, min-N filtering, and drug sort order. Hover for full co-occurrence + attributed stats. Regenerate with `python drug_heatmap_build.py` (embeds data into HTML from template). Requires internet connection (D3 v7 loaded from CDN).
 
 ## Data source
 
