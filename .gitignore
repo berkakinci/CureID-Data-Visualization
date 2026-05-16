@@ -1,3 +1,31 @@
+# Common backup files
+\#*#
+*~
+*.bak
+~$*
+
+# OS junk
+.DS_Store
+Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
+
+# Build Products
+__pycache__
+*.pyc
+.coverage
+.hypothesis/
+
+# SQLite temp files
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Other
+.venv
+.vscode
+
 # Generated viz data (regenerate with drug_outcomes_viz_build.py)
 *_viz_data.json
 *_viz_details.json
