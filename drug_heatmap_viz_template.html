@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Long COVID — Symptom × Drug Efficacy Heatmap</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; }
+.subtitle { font-size: 0.85rem; color: #888; margin-bottom: 16px; }
+.controls { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.controls label { font-size: 0.8rem; color: #aaa; }
+.controls select, .controls input { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
+.controls button { background: #3a3a6a; border: 1px solid #555; color: #e0e0e0; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+.controls button:hover { background: #4a4a8a; }
+.controls button.active { background: #5a5aaa; border-color: #88f; }
+
+#chart-container { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 180px); }
+svg { display: block; }
+.cell { stroke: #1a1a2e; stroke-width: 1px; cursor: pointer; }
+.cell:hover { stroke: #fff; stroke-width: 2px; }
+.axis-label { font-size: 11px; fill: #ccc; }
+.axis-label-y { font-size: 12px; fill: #ddd; font-weight: 500; }
+
+#tooltip {
+  position: fixed; pointer-events: none; background: #2a2a4a; border: 1px solid #666;
+  border-radius: 6px; padding: 10px 14px; font-size: 0.78rem; line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: none; z-index: 100; max-width: 320px;
+}
+#tooltip .tt-drug { font-weight: 600; color: #fff; font-size: 0.85rem; }
+#tooltip .tt-symptom { color: #aaa; }
+#tooltip .tt-val { color: #8cf; }
+#tooltip .tt-lift-pos { color: #4f4; }
+#tooltip .tt-lift-neg { color: #f66; }
+#tooltip .tt-attr { color: #fc8; }
+#tooltip .tt-sep { border-top: 1px solid #444; margin: 4px 0; }
+
+.legend { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.legend-bar { height: 14px; border-radius: 2px; }
+.legend-label { font-size: 0.75rem; color: #aaa; }
+
+.info-panel { margin-bottom: 16px; }
+.info-panel summary { cursor: pointer; font-size: 0.85rem; color: #aac; padding: 4px 0; }
+.info-panel summary:hover { color: #ccf; }
+.info-content { background: #22223a; border: 1px solid #444; border-radius: 6px; padding: 14px 18px; margin-top: 8px; font-size: 0.8rem; line-height: 1.6; max-width: 720px; }
+.info-content h4 { color: #ccc; margin: 12px 0 4px; font-size: 0.82rem; }
+.info-content dl { margin: 0 0 8px 0; }
+.info-content dt { color: #8cf; font-weight: 600; margin-top: 6px; }
+.info-content dd { color: #bbb; margin-left: 12px; margin-bottom: 4px; }
+.info-content p { color: #bbb; margin: 6px 0; }
+.def-default { font-size: 0.7rem; color: #6a6; background: #1a3a1a; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Symptom × Drug Efficacy Heatmap</h1>
+<p class="subtitle">CureID Long COVID — Co-occurrence significant improvement lift vs. baseline</p>
+
+<details class="info-panel">
+<summary>ℹ️ How to read this chart</summary>
+<div class="info-content">
+<p><b>What it shows:</b> Each cell represents a drug (column) × symptom (row) pair. Color indicates how much better (green) or worse (red) that drug performs compared to the baseline rate for that symptom.</p>
+
+<h4>Metric definitions</h4>
+<dl>
+<dt>Co-occurrence Significant Improvement Lift <span class="def-default">(default)</span></dt>
+<dd>Among all reports where the patient was <em>taking</em> this drug and <em>had</em> this symptom, what % achieved "significant improvement" or "complete resolution" — minus the baseline rate for all patients with that symptom. Positive = better than average.</dd>
+
+<dt>Co-occurrence Any Improvement Lift</dt>
+<dd>Same as above but counts <em>any</em> improvement (mild, moderate, significant, or resolved) vs. baseline. Broader signal, less specific.</dd>
+
+<dt>Co-occurrence Significant Improvement Rate</dt>
+<dd>Raw % of co-occurring reports that achieved significant improvement or resolution (not relative to baseline). Useful for absolute comparison.</dd>
+
+<dt>Attributed Significant Improvement Lift</dt>
+<dd>Only counts outcomes where the patient <em>explicitly credited</em> this drug for the symptom change. Smaller N but stronger causal signal. Lift is vs. the attributed baseline across all drugs for that symptom.</dd>
+</dl>
+
+<h4>Controls</h4>
+<dl>
+<dt>Min co-occur N</dt>
+<dd>Minimum number of reports where the patient was taking the drug and had the symptom. Higher = fewer drugs shown but more reliable estimates.</dd>
+
+<dt>Sort drugs by</dt>
+<dd>Hover each button for details. Sorts drug columns by the selected metric using different aggregation strategies.</dd>
+</dl>
+
+<h4>Tooltip</h4>
+<p>Hover any cell to see: co-occurrence N, significant improvement rate and lift, any improvement rate and lift, and (if available) attributed N, significant improvement rate, and lift.</p>
+
+<p><b>Dark cells</b> = no data for that pair at the current N threshold.</p>
+</div>
+</details>
+
+<div class="controls">
+  <div>
+    <label>Color by:</label>
+    <select id="metric-select">
+      <option value="cooccur_sig_lift" selected>Co-occurrence Significant Improvement Lift</option>
+      <option value="cooccur_impr_lift">Co-occurrence Any Improvement Lift</option>
+      <option value="cooccur_sig_rate">Co-occurrence Significant Improvement Rate</option>
+      <option value="attr_sig_lift">Attributed Significant Improvement Lift</option>
+    </select>
+  </div>
+  <div>
+    <label>Min co-occur N:</label>
+    <input type="range" id="min-n" min="3" max="30" value="8" style="width:100px">
+    <span id="min-n-val">8</span>
+  </div>
+  <div>
+    <label>Sort drugs by:</label>
+    <button id="sort-wavg" class="active" title="Weighted mean of the selected metric — each symptom's contribution is proportional to its co-occurrence N (higher-N estimates count more)">N-weighted avg</button>
+    <button id="sort-bayes" title="Mean lift shrunk toward zero based on total sample size: mean(lift) × N/(N + prior), where prior is the median total N across all drugs. Low-N drugs get pulled toward zero; high-N drugs keep their observed lift.">Bayesian</button>
+    <button id="sort-avg" title="Simple unweighted mean across symptoms where the drug has data — each symptom counts equally regardless of sample size">Avg lift</button>
+    <button id="sort-max" title="Highest single-symptom value (best targeted drugs first)">Max lift</button>
+    <button id="sort-alpha" title="Alphabetical order">A-Z</button>
+  </div>
+</div>
+
+<div class="legend" id="legend"></div>
+<div id="chart-container"><svg id="chart"></svg></div>
+<div id="tooltip"></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+/*__DATA_PLACEHOLDER__*/
+
+let currentMetric = 'cooccur_sig_lift';
+let currentMinN = 8;
+let currentSort = 'wavg';
+
+const cellW = 18, cellH = 28;
+const marginLeft = 180, marginTop = 160, marginRight = 20, marginBottom = 20;
+
+async function init() {
+  // DATA is embedded inline by heatmap_build.py
+  render();
+
+  d3.select('#metric-select').on('change', function() {
+    currentMetric = this.value;
+    render();
+  });
+  d3.select('#min-n').on('input', function() {
+    currentMinN = +this.value;
+    d3.select('#min-n-val').text(this.value);
+    render();
+  });
+  d3.select('#sort-wavg').on('click', () => { currentSort = 'wavg'; updateSortButtons(); render(); });
+  d3.select('#sort-bayes').on('click', () => { currentSort = 'bayes'; updateSortButtons(); render(); });
+  d3.select('#sort-avg').on('click', () => { currentSort = 'avg'; updateSortButtons(); render(); });
+  d3.select('#sort-max').on('click', () => { currentSort = 'max'; updateSortButtons(); render(); });
+  d3.select('#sort-alpha').on('click', () => { currentSort = 'alpha'; updateSortButtons(); render(); });
+}
+
+function updateSortButtons() {
+  d3.selectAll('.controls button').classed('active', false);
+  d3.select(`#sort-${currentSort}`).classed('active', true);
+}
+
+function render() {
+  // Filter cells by min N
+  const cells = DATA.cells.filter(c => c.cooccur_n >= currentMinN);
+
+  // Determine which drugs still have data
+  const drugSet = new Set(cells.map(c => c.drug));
+  let drugs = [...drugSet];
+
+  // Sort drugs
+  if (currentSort === 'wavg') {
+    const drugWAvg = {};
+    drugs.forEach(d => {
+      const drugCells = cells.filter(c => c.drug === d && c[currentMetric] != null);
+      const sumWeighted = drugCells.reduce((acc, c) => acc + c[currentMetric] * c.cooccur_n, 0);
+      const sumN = drugCells.reduce((acc, c) => acc + c.cooccur_n, 0);
+      drugWAvg[d] = sumN > 0 ? sumWeighted / sumN : 0;
+    });
+    drugs.sort((a, b) => drugWAvg[b] - drugWAvg[a]);
+  } else if (currentSort === 'bayes') {
+    // Bayesian shrinkage: mean(lift) × (total_N / (total_N + prior_N))
+    // prior_N = median total N across all drugs (shrinks low-N drugs toward zero)
+    const drugTotals = {};
+    const drugMeans = {};
+    drugs.forEach(d => {
+      const drugCells = cells.filter(c => c.drug === d && c[currentMetric] != null);
+      const sumN = drugCells.reduce((acc, c) => acc + c.cooccur_n, 0);
+      const mean = drugCells.length ? d3.mean(drugCells, c => c[currentMetric]) : 0;
+      drugTotals[d] = sumN;
+      drugMeans[d] = mean;
+    });
+    const allTotals = Object.values(drugTotals).sort((a, b) => a - b);
+    const priorN = allTotals[Math.floor(allTotals.length / 2)]; // median
+    const drugBayes = {};
+    drugs.forEach(d => {
+      const totalN = drugTotals[d];
+      drugBayes[d] = drugMeans[d] * (totalN / (totalN + priorN));
+    });
+    drugs.sort((a, b) => drugBayes[b] - drugBayes[a]);
+  } else if (currentSort === 'avg') {
+    const drugAvg = {};
+    drugs.forEach(d => {
+      const vals = cells.filter(c => c.drug === d).map(c => c[currentMetric]).filter(v => v != null);
+      drugAvg[d] = vals.length ? d3.mean(vals) : 0;
+    });
+    drugs.sort((a, b) => drugAvg[b] - drugAvg[a]);
+  } else if (currentSort === 'max') {
+    const drugMax = {};
+    drugs.forEach(d => {
+      const vals = cells.filter(c => c.drug === d).map(c => c[currentMetric]).filter(v => v != null);
+      drugMax[d] = vals.length ? d3.max(vals) : 0;
+    });
+    drugs.sort((a, b) => drugMax[b] - drugMax[a]);
+  } else {
+    drugs.sort((a, b) => a.localeCompare(b));
+  }
+
+  const symptoms = DATA.symptoms.map(s => s.short);
+
+  const width = marginLeft + drugs.length * cellW + marginRight;
+  const height = marginTop + symptoms.length * cellH + marginBottom;
+
+  const svg = d3.select('#chart')
+    .attr('width', width)
+    .attr('height', height);
+  svg.selectAll('*').remove();
+
+  // Color scale — diverging
+  const vals = cells.map(c => c[currentMetric]).filter(v => v != null);
+  const extent = d3.extent(vals);
+  const maxAbs = Math.max(Math.abs(extent[0] || 0), Math.abs(extent[1] || 0), 0.01);
+
+  const colorScale = d3.scaleDiverging()
+    .domain([-maxAbs, 0, maxAbs])
+    .interpolator(d3.interpolateRdYlGn);
+
+  // For rate metrics (0-1), use sequential
+  const isRate = currentMetric.includes('_rate');
+  let getColor;
+  if (isRate) {
+    const seqScale = d3.scaleSequential()
+      .domain([0, d3.max(vals) || 1])
+      .interpolator(d3.interpolateYlGn);
+    getColor = v => v == null ? '#333' : seqScale(v);
+  } else {
+    getColor = v => v == null ? '#333' : colorScale(v);
+  }
+
+  // Build lookup
+  const cellMap = {};
+  cells.forEach(c => { cellMap[`${c.symptom}|${c.drug}`] = c; });
+
+  // Draw cells
+  const g = svg.append('g').attr('transform', `translate(${marginLeft},${marginTop})`);
+
+  drugs.forEach((drug, xi) => {
+    symptoms.forEach((symptom, yi) => {
+      const cell = cellMap[`${symptom}|${drug}`];
+      const val = cell ? cell[currentMetric] : null;
+      g.append('rect')
+        .attr('class', 'cell')
+        .attr('x', xi * cellW)
+        .attr('y', yi * cellH)
+        .attr('width', cellW)
+        .attr('height', cellH)
+        .attr('fill', getColor(val))
+        .attr('rx', 2)
+        .on('mouseover', (event) => showTooltip(event, cell, drug, symptom))
+        .on('mousemove', (event) => moveTooltip(event))
+        .on('mouseout', hideTooltip);
+    });
+  });
+
+  // X axis (drug names, rotated)
+  const xAxis = svg.append('g').attr('transform', `translate(${marginLeft},${marginTop - 4})`);
+  drugs.forEach((drug, i) => {
+    xAxis.append('text')
+      .attr('class', 'axis-label')
+      .attr('x', i * cellW + cellW / 2)
+      .attr('y', 0)
+      .attr('text-anchor', 'start')
+      .attr('transform', `rotate(-55, ${i * cellW + cellW / 2}, 0)`)
+      .text(drug.length > 24 ? drug.slice(0, 22) + '…' : drug);
+  });
+
+  // Y axis (symptom names)
+  const yAxis = svg.append('g').attr('transform', `translate(${marginLeft - 8},${marginTop})`);
+  symptoms.forEach((symptom, i) => {
+    yAxis.append('text')
+      .attr('class', 'axis-label-y')
+      .attr('x', 0)
+      .attr('y', i * cellH + cellH / 2 + 4)
+      .attr('text-anchor', 'end')
+      .text(symptom);
+  });
+
+  // Legend
+  renderLegend(getColor, isRate, maxAbs, vals);
+}
+
+function renderLegend(getColor, isRate, maxAbs, vals) {
+  const legend = d3.select('#legend');
+  legend.html('');
+
+  const steps = 9;
+  const barWidth = 30;
+
+  if (isRate) {
+    const max = d3.max(vals) || 1;
+    for (let i = 0; i < steps; i++) {
+      const v = (i / (steps - 1)) * max;
+      const div = document.createElement('div');
+      div.className = 'legend-bar';
+      div.style.width = barWidth + 'px';
+      div.style.background = getColor(v);
+      legend.node().appendChild(div);
+    }
+    legend.node().insertAdjacentHTML('beforeend', `<span class="legend-label">0% → ${(d3.max(vals)*100).toFixed(0)}%</span>`);
+  } else {
+    for (let i = 0; i < steps; i++) {
+      const v = -maxAbs + (i / (steps - 1)) * 2 * maxAbs;
+      const div = document.createElement('div');
+      div.className = 'legend-bar';
+      div.style.width = barWidth + 'px';
+      div.style.background = getColor(v);
+      legend.node().appendChild(div);
+    }
+    legend.node().insertAdjacentHTML('beforeend', `<span class="legend-label">${(-maxAbs*100).toFixed(0)}% → +${(maxAbs*100).toFixed(0)}% lift</span>`);
+  }
+}
+
+function showTooltip(event, cell, drug, symptom) {
+  const tt = d3.select('#tooltip');
+  if (!cell) {
+    tt.html(`<div class="tt-drug">${drug}</div><div class="tt-symptom">${symptom}</div><div>No data (below N threshold)</div>`);
+  } else {
+    const liftClass = v => v > 0 ? 'tt-lift-pos' : v < 0 ? 'tt-lift-neg' : 'tt-val';
+    const pct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+    const liftPct = v => v != null ? (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+
+    let html = `<div class="tt-drug">${drug}</div>`;
+    html += `<div class="tt-symptom">${symptom}</div>`;
+    html += `<div class="tt-sep"></div>`;
+    html += `<div><b>Co-occurrence</b> (N=${cell.cooccur_n})</div>`;
+    html += `<div>Significant improvement: <span class="tt-val">${pct(cell.cooccur_sig_rate)}</span> · Lift: <span class="${liftClass(cell.cooccur_sig_lift)}">${liftPct(cell.cooccur_sig_lift)}</span></div>`;
+    html += `<div>Any improvement: <span class="tt-val">${pct(cell.cooccur_impr_rate)}</span> · Lift: <span class="${liftClass(cell.cooccur_impr_lift)}">${liftPct(cell.cooccur_impr_lift)}</span></div>`;
+    if (cell.attr_n) {
+      html += `<div class="tt-sep"></div>`;
+      html += `<div><b class="tt-attr">Attributed</b> (N=${cell.attr_n})</div>`;
+      html += `<div>Significant improvement: <span class="tt-val">${pct(cell.attr_sig_rate)}</span> · Lift: <span class="${liftClass(cell.attr_sig_lift)}">${liftPct(cell.attr_sig_lift)}</span></div>`;
+    }
+    tt.html(html);
+  }
+  tt.style('display', 'block');
+  moveTooltip(event);
+}
+
+function moveTooltip(event) {
+  const tt = d3.select('#tooltip');
+  let x = event.clientX + 14;
+  let y = event.clientY + 14;
+  // Keep on screen
+  const rect = tt.node().getBoundingClientRect();
+  if (x + rect.width > window.innerWidth - 10) x = event.clientX - rect.width - 10;
+  if (y + rect.height > window.innerHeight - 10) y = event.clientY - rect.height - 10;
+  tt.style('left', x + 'px').style('top', y + 'px');
+}
+
+function hideTooltip() {
+  d3.select('#tooltip').style('display', 'none');
+}
+
+init();
+</script>
+</body>
+</html>
