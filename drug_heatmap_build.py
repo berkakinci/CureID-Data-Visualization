@@ -18,6 +18,7 @@ import json
 import sys
 from pathlib import Path
 from collections import defaultdict
+from datetime import datetime
 from symptom_drug_efficacy import analyze_symptom, get_short_name
 
 DB_PATH = Path(__file__).parent / "cureid.db"
@@ -113,13 +114,26 @@ def build_data():
     return output
 
 
+def get_meta_string():
+    """Build the data metadata string from report timestamps and count."""
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=1988"
+    ).fetchone()
+    conn.close()
+    count = row[0]
+    latest = datetime.fromisoformat(row[1].replace('Z', '+00:00')).strftime("%b %-d, %Y")
+    return f"Most recent report updated {latest} · {count} Long COVID reports"
+
+
 def main():
     data = build_data()
 
-    # Read template and inject data
+    # Read template and inject data + meta
     template = TEMPLATE_PATH.read_text()
     data_json = json.dumps(data, separators=(',', ':'))
     html = template.replace('/*__DATA_PLACEHOLDER__*/', f'const DATA = {data_json};')
+    html = html.replace('/*__META_PLACEHOLDER__*/', get_meta_string())
 
     HTML_PATH.write_text(html)
     size_kb = HTML_PATH.stat().st_size / 1024
