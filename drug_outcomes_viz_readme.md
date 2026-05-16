@@ -27,7 +27,7 @@ This also regenerates the intermediate JSON files:
 ## Features
 
 - **Bar chart**: stacked horizontal bars, one per drug. Color = outcome grade.
-- **Controls**: sort (avg score per report, sum of scores, total outcomes, total reports, % any improvement, % significant improvement, % complete resolution, % worsened, alpha), min-report slider, absolute/% toggle.
+- **Controls**: sort (sum of scores, avg score per report, total outcomes, total reports, % any improvement, % significant improvement, % complete resolution, % worsened, alpha), min-report slider (filters by unique patient reports), normalize bars toggle (proportional vs absolute width).
 - **Hover tooltip**: outcome breakdown with counts, percentages, and average score.
 - **Legend tooltips**: hover color swatches for outcome category definitions.
 - **Info panel**: collapsible explanation of controls and metrics.

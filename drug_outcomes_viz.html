@@ -87,13 +87,13 @@
 <h4>Controls</h4>
 <dl>
 <dt>Sort by</dt>
-<dd>Orders the drug list by the selected metric. "Any Improvement" = mild + moderate + significant + resolved. "Significant Improvement" = significant + resolved only.</dd>
+<dd>Orders the drug list by the selected metric. "Sum of scores" rewards both quality and volume. "Average score" gives each patient equal weight. Percentage sorts use only the tracked outcome categories.</dd>
 
 <dt>Min reports</dt>
-<dd>Minimum number of symptom-outcome reports for a drug to appear. Higher = fewer drugs shown but more reliable distributions.</dd>
+<dd>Minimum number of unique patient reports for a drug to appear. Higher = fewer drugs shown but more reliable estimates.</dd>
 
-<dt>Show as %</dt>
-<dd>Toggle between percentage view (bar width = proportion) and absolute count view.</dd>
+<dt>Normalize bars</dt>
+<dd>When checked, all bars fill the full width (showing outcome distribution as proportions). When unchecked, bar length scales with total outcomes — longer bars = more data. Label shows report count in absolute mode, sort metric in normalized mode.</dd>
 </dl>
 
 <h4>Drill-down</h4>
@@ -120,7 +120,7 @@
     <span id="min-reports-val">10</span>
   </label>
   <label>
-    <input type="checkbox" id="show-pct" checked> Show as %
+    <input type="checkbox" id="show-pct" checked> Normalize bars
   </label>
 </div>
 
@@ -215,7 +215,7 @@ function render() {
   const minReports = parseInt(document.getElementById('min-reports').value);
   const showPct = document.getElementById('show-pct').checked;
 
-  let filtered = DATA.filter(d => d.total >= minReports);
+  let filtered = DATA.filter(d => d.reports >= minReports);
 
   switch(sortBy) {
     case 'total': filtered.sort((a, b) => b.total - a.total); break;
@@ -256,15 +256,22 @@ function render() {
   const chart = document.getElementById('chart');
   let html = '';
 
+  // For absolute mode: find max tracked total to scale bar widths
+  const maxTracked = showPct ? 1 : Math.max(...filtered.map(d => {
+    const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
+    return categories.reduce((sum, cat) => sum + d[cat], 0);
+  }));
+
   filtered.forEach(d => {
     const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
     const trackedTotal = categories.reduce((sum, cat) => sum + d[cat], 0);
+    const barWidth = showPct ? 100 : (trackedTotal / maxTracked * 100);
     let segments = '';
 
     categories.forEach(cat => {
       const val = d[cat];
       if (val === 0) return;
-      const width = val / trackedTotal * 100;
+      const width = val / trackedTotal * barWidth;
       segments += `<div class="bar-segment" style="width:${width}%;background:${COLORS[cat]}"></div>`;
     });
 
@@ -273,7 +280,7 @@ function render() {
     const pctResolved = Math.round(d.resolved / trackedTotal * 100);
     const label = d.drug.length > 40 ? d.drug.substring(0, 38) + '…' : d.drug;
     let countLabel;
-    if (!showPct) countLabel = `${d.total}`;
+    if (!showPct) countLabel = `${d.reports} rpts`;
     else if (sortBy === 'avg-score') countLabel = `${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(1)}`;
     else if (sortBy === 'sum-score') countLabel = `${d.sum_score > 0 ? '+' : ''}${d.sum_score.toFixed(0)}`;
     else if (sortBy === 'reports') countLabel = `${d.reports}`;
@@ -315,8 +322,13 @@ function attachEvents() {
       tooltip.style.display = 'block';
     });
     row.addEventListener('mousemove', (e) => {
-      tooltip.style.left = (e.clientX + 15) + 'px';
-      tooltip.style.top = (e.clientY - 10) + 'px';
+      let x = e.clientX + 15;
+      let y = e.clientY - 10;
+      const rect = tooltip.getBoundingClientRect();
+      if (x + rect.width > window.innerWidth - 20) x = e.clientX - rect.width - 15;
+      if (y + rect.height > window.innerHeight - 20) y = e.clientY - rect.height - 10;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top = y + 'px';
     });
     row.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
     row.addEventListener('click', () => {
