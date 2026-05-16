@@ -10,10 +10,21 @@ import sqlite3
 import json
 import os
 from normalize_drugs import load_name_map, normalize_name
+from pathlib import Path
+
+
+def load_config():
+    """Load disease config from config.json."""
+    config_path = Path(__file__).parent / "config.json"
+    with open(config_path) as f:
+        return json.load(f)
 
 
 def build_outcomes(cur, name_map):
     """Generate drug_outcomes.json — per-drug outcome counts + per-report scores."""
+    config = load_config()
+    disease_id = config["disease_id"]
+
     # Outcome score mapping
     SCORE = {
         'Complete symptom resolution': 3,
@@ -26,14 +37,14 @@ def build_outcomes(cur, name_map):
         'Significant symptom worsening': -2,
     }
 
-    # Get all attributed outcomes for Long COVID (raw names, normalize in Python)
+    # Get all attributed outcomes (raw names, normalize in Python)
     cur.execute('''
         SELECT sod.drug_name, so.report_id, so.outcome
         FROM symptom_outcome_drugs sod
         JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988
-    ''')
+        WHERE r.disease_id = ?
+    ''', (disease_id,))
 
     from collections import defaultdict
     # drug -> report_id -> list of scores
@@ -149,15 +160,17 @@ def build_outcomes(cur, name_map):
 
 def build_details(cur, name_map):
     """Generate drug_report_details.json — per-drug case list with metadata."""
+    config = load_config()
+    disease_id = config["disease_id"]
 
-    # Get all attributed symptom outcomes for Long COVID (raw names, normalize in Python)
+    # Get all attributed symptom outcomes (raw names, normalize in Python)
     cur.execute('''
         SELECT sod.drug_name, so.report_id, so.symptom, so.outcome
         FROM symptom_outcome_drugs sod
         JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988
-    ''')
+        WHERE r.disease_id = ?
+    ''', (disease_id,))
 
     # Build drug -> report_id -> list of {symptom, outcome}
     # and collect all (drug, report_id) pairs
@@ -182,15 +195,15 @@ def build_details(cur, name_map):
             'o': short_outcome
         })
 
-    # Get report metadata for all Long COVID reports
+    # Get report metadata for all reports of this disease
     cur.execute('''
         SELECT r.id, r.outcome_computed, r.author_qualification,
                p.sex, p.age_group, p.country_treated, ef.symptoms_duration
         FROM reports r
         JOIN patients p ON r.id = p.report_id
         LEFT JOIN extra_fields ef ON r.id = ef.report_id
-        WHERE r.disease_id = 1988
-    ''')
+        WHERE r.disease_id = ?
+    ''', (disease_id,))
     report_meta = {}
     for row in cur.fetchall():
         report_meta[row[0]] = {
@@ -236,6 +249,10 @@ def build_html():
     from pathlib import Path
     from datetime import datetime
 
+    config = load_config()
+    disease_id = config["disease_id"]
+    disease_name = config["disease_name"]
+
     template = Path('drug_outcomes_viz_template.html').read_text()
     data_json = Path('drug_outcomes_viz_data.json').read_text()
     details_json = Path('drug_outcomes_viz_details.json').read_text()
@@ -246,13 +263,14 @@ def build_html():
     import sqlite3
     conn = sqlite3.connect('cureid.db')
     row = conn.execute(
-        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=1988"
+        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=?", (disease_id,)
     ).fetchone()
     conn.close()
     count = row[0]
     latest = datetime.fromisoformat(row[1].replace('Z', '+00:00')).strftime("%b %-d, %Y")
-    meta_str = f"Most recent report updated {latest} · {count} Long COVID reports"
+    meta_str = f"Most recent report updated {latest} · {count} {disease_name} reports"
     html = html.replace('/*__META_PLACEHOLDER__*/', meta_str)
+    html = html.replace('/*__DISEASE_NAME__*/', disease_name)
 
     Path('drug_outcomes_viz.html').write_text(html)
     size_kb = Path('drug_outcomes_viz.html').stat().st_size / 1024

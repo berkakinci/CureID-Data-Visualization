@@ -24,6 +24,7 @@ from symptom_drug_efficacy import analyze_symptom, get_short_name
 DB_PATH = Path(__file__).parent / "cureid.db"
 HTML_PATH = Path(__file__).parent / "drug_heatmap_viz.html"
 TEMPLATE_PATH = Path(__file__).parent / "drug_heatmap_viz_template.html"
+CONFIG_PATH = Path(__file__).parent / "config.json"
 
 # Minimum thresholds
 MIN_SYMPTOM_REPORTS = 50
@@ -31,8 +32,16 @@ MIN_COOCCUR = 5
 MIN_SYMPTOMS_PER_DRUG = 3
 
 
+def load_config():
+    """Load disease config from config.json."""
+    with open(CONFIG_PATH) as f:
+        return json.load(f)
+
+
 def build_data():
     """Query DB and return the heatmap data dict."""
+    config = load_config()
+    disease_id = config["disease_id"]
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
@@ -40,10 +49,10 @@ def build_data():
     cur.execute("""
         SELECT symptom, COUNT(*) as cnt FROM symptom_outcomes so
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988
+        WHERE r.disease_id = ?
         GROUP BY symptom HAVING cnt >= ?
         ORDER BY cnt DESC
-    """, (MIN_SYMPTOM_REPORTS,))
+    """, (disease_id, MIN_SYMPTOM_REPORTS,))
     symptom_rows = cur.fetchall()
 
     symptoms_meta = []
@@ -72,8 +81,8 @@ def build_data():
     for r in cur.execute("""
         SELECT r.id, p.sex, p.age_group, p.country_treated
         FROM reports r JOIN patients p ON p.report_id = r.id
-        WHERE r.disease_id = 1988
-    """).fetchall():
+        WHERE r.disease_id = ?
+    """, (disease_id,)).fetchall():
         reports_data[r[0]] = {
             'sex': (r[1] or '?')[0],
             'age': r[2] or '',
@@ -86,8 +95,8 @@ def build_data():
     for r in cur.execute("""
         SELECT rd.report_id, d.name, rd.dose_amount, rd.unit_of_measurement, rd.frequency
         FROM report_drugs rd JOIN drugs d ON rd.drug_id = d.id
-        JOIN reports rep ON rd.report_id = rep.id WHERE rep.disease_id = 1988
-    """).fetchall():
+        JOIN reports rep ON rd.report_id = rep.id WHERE rep.disease_id = ?
+    """, (disease_id,)).fetchall():
         rid = r[0]
         if rid not in reports_data:
             continue
@@ -105,8 +114,8 @@ def build_data():
     for r in cur.execute("""
         SELECT so.report_id, so.symptom, so.outcome
         FROM symptom_outcomes so JOIN reports rep ON so.report_id = rep.id
-        WHERE rep.disease_id = 1988
-    """).fetchall():
+        WHERE rep.disease_id = ?
+    """, (disease_id,)).fetchall():
         rid = r[0]
         if rid not in reports_data:
             continue
@@ -120,23 +129,23 @@ def build_data():
     sym_report_ids = defaultdict(set)
     for r in cur.execute("""
         SELECT so.report_id, so.symptom FROM symptom_outcomes so
-        JOIN reports rep ON so.report_id = rep.id WHERE rep.disease_id = 1988
-    """).fetchall():
+        JOIN reports rep ON so.report_id = rep.id WHERE rep.disease_id = ?
+    """, (disease_id,)).fetchall():
         sym_report_ids[get_short_name(r[1])].add(r[0])
 
     drug_report_ids = defaultdict(set)
     for r in cur.execute("""
         SELECT rd.report_id, d.name FROM report_drugs rd
         JOIN drugs d ON rd.drug_id = d.id
-        JOIN reports rep ON rd.report_id = rep.id WHERE rep.disease_id = 1988
-    """).fetchall():
+        JOIN reports rep ON rd.report_id = rep.id WHERE rep.disease_id = ?
+    """, (disease_id,)).fetchall():
         drug_report_ids[normalize_name(r[1], name_map)].add(r[0])
 
     # --- End report-level data ---
 
     for symptom_name, cnt in symptom_rows:
         short = get_short_name(symptom_name)
-        symptom_name_full, baseline, results = analyze_symptom(cur, symptom_name, min_drug_reports=MIN_COOCCUR)
+        symptom_name_full, baseline, results = analyze_symptom(cur, symptom_name, min_drug_reports=MIN_COOCCUR, disease_id=disease_id)
         if not baseline or not results:
             continue
 
@@ -157,8 +166,8 @@ def build_data():
             SELECT so.report_id, so.outcome
             FROM symptom_outcomes so
             JOIN reports r ON so.report_id = r.id
-            WHERE r.disease_id = 1988 AND so.symptom = ?
-        """, (symptom_name_full,))
+            WHERE r.disease_id = ? AND so.symptom = ?
+        """, (disease_id, symptom_name_full,))
         report_outcome_map = {}
         for rid, outcome in cur.fetchall():
             report_outcome_map[rid] = outcome
@@ -279,24 +288,30 @@ def build_data():
 
 def get_meta_string():
     """Build the data metadata string from report timestamps and count."""
+    config = load_config()
+    disease_id = config["disease_id"]
+    disease_name = config["disease_name"]
     conn = sqlite3.connect(DB_PATH)
     row = conn.execute(
-        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=1988"
+        "SELECT COUNT(*), MAX(updated) FROM reports WHERE disease_id=?", (disease_id,)
     ).fetchone()
     conn.close()
     count = row[0]
     latest = datetime.fromisoformat(row[1].replace('Z', '+00:00')).strftime("%b %-d, %Y")
-    return f"Most recent report updated {latest} · {count} Long COVID reports"
+    return f"Most recent report updated {latest} · {count} {disease_name} reports"
 
 
 def main():
+    config = load_config()
+    disease_name = config["disease_name"]
     data = build_data()
 
-    # Read template and inject data + meta
+    # Read template and inject data + meta + disease name
     template = TEMPLATE_PATH.read_text()
     data_json = json.dumps(data, separators=(',', ':'))
     html = template.replace('/*__DATA_PLACEHOLDER__*/', f'const DATA = {data_json};')
     html = html.replace('/*__META_PLACEHOLDER__*/', get_meta_string())
+    html = html.replace('/*__DISEASE_NAME__*/', disease_name)
 
     HTML_PATH.write_text(html)
     size_kb = HTML_PATH.stat().st_size / 1024

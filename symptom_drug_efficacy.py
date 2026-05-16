@@ -58,7 +58,7 @@ def get_short_name(full_symptom):
     return full_symptom[:40]
 
 
-def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
+def analyze_symptom(cur, symptom_pattern, min_drug_reports=5, disease_id=1988):
     """
     Analyze drug efficacy for a given symptom.
     Returns (symptom_full_name, baseline_stats, drug_results).
@@ -67,11 +67,11 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
     cur.execute("""
         SELECT so.symptom, COUNT(*) as cnt FROM symptom_outcomes so
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988 AND so.symptom LIKE ?
+        WHERE r.disease_id = ? AND so.symptom LIKE ?
         GROUP BY so.symptom
         ORDER BY cnt DESC
         LIMIT 1
-    """, (f"%{symptom_pattern}%",))
+    """, (disease_id, f"%{symptom_pattern}%",))
     row = cur.fetchone()
     if not row:
         return None, None, []
@@ -86,8 +86,8 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
             SUM(CASE WHEN outcome LIKE '%worsening%' THEN 1 ELSE 0 END) as worsened
         FROM symptom_outcomes so
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988 AND so.symptom = ?
-    """, (symptom_name,))
+        WHERE r.disease_id = ? AND so.symptom = ?
+    """, (disease_id, symptom_name,))
     baseline = cur.fetchone()
     baseline_stats = {
         "total": baseline[0],
@@ -103,8 +103,8 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
             CASE WHEN outcome = 'Significant symptom improvement' OR outcome = 'Complete symptom resolution' THEN 1 ELSE 0 END as sig_improved
         FROM symptom_outcomes so
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988 AND so.symptom = ?
-    """, (symptom_name,))
+        WHERE r.disease_id = ? AND so.symptom = ?
+    """, (disease_id, symptom_name,))
     report_outcomes = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
     all_report_ids = set(report_outcomes.keys())
 
@@ -132,8 +132,8 @@ def analyze_symptom(cur, symptom_pattern, min_drug_reports=5):
         FROM symptom_outcome_drugs sod
         JOIN symptom_outcomes so ON sod.symptom_outcome_id = so.id
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988 AND so.symptom = ?
-    """, (symptom_name,))
+        WHERE r.disease_id = ? AND so.symptom = ?
+    """, (disease_id, symptom_name,))
 
     from collections import defaultdict as _dd
     _attr_raw = _dd(lambda: {"total": 0, "improved": 0, "sig_improved": 0, "worsened": 0})
@@ -336,8 +336,18 @@ def markdown_symptom_results(symptom_name, baseline, results, top_n_co=15, top_n
     return "\n".join(lines)
 
 
+def load_config():
+    """Load disease config from config.json."""
+    import json
+    config_path = Path(__file__).parent / "config.json"
+    with open(config_path) as f:
+        return json.load(f)
+
+
 def export_results(db_path, output_path):
     """Export full results for all major symptoms to CSV."""
+    config = load_config()
+    disease_id = config["disease_id"]
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
@@ -345,9 +355,9 @@ def export_results(db_path, output_path):
     cur.execute("""
         SELECT symptom, COUNT(*) as cnt FROM symptom_outcomes so
         JOIN reports r ON so.report_id = r.id
-        WHERE r.disease_id = 1988
+        WHERE r.disease_id = ?
         GROUP BY symptom ORDER BY cnt DESC
-    """)
+    """, (disease_id,))
     symptoms = cur.fetchall()
 
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
@@ -365,7 +375,7 @@ def export_results(db_path, output_path):
             if cnt < 20:
                 continue
             short = get_short_name(symptom_name)
-            _, baseline, results = analyze_symptom(cur, symptom_name, min_drug_reports=3)
+            _, baseline, results = analyze_symptom(cur, symptom_name, min_drug_reports=3, disease_id=disease_id)
             if not baseline:
                 continue
             bl_impr = baseline["improved"] / baseline["total"] if baseline["total"] > 0 else 0
@@ -405,6 +415,8 @@ TOP_SYMPTOMS = [
 
 if __name__ == "__main__":
     args = sys.argv[1:]
+    config = load_config()
+    disease_id = config["disease_id"]
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
@@ -418,23 +430,23 @@ if __name__ == "__main__":
         if non_flag:
             patterns = non_flag
         for pattern in patterns:
-            symptom_name, baseline, results = analyze_symptom(cur, pattern)
+            symptom_name, baseline, results = analyze_symptom(cur, pattern, disease_id=disease_id)
             if symptom_name and results:
                 print(markdown_symptom_results(symptom_name, baseline, results))
     elif "--all" in args:
         cur.execute("""
             SELECT symptom, COUNT(*) as cnt FROM symptom_outcomes so
-            JOIN reports r ON so.report_id = r.id WHERE r.disease_id = 1988
+            JOIN reports r ON so.report_id = r.id WHERE r.disease_id = ?
             GROUP BY symptom HAVING cnt >= 50 ORDER BY cnt DESC
-        """)
+        """, (disease_id,))
         for symptom_name, cnt in cur.fetchall():
-            _, baseline, results = analyze_symptom(cur, symptom_name)
+            _, baseline, results = analyze_symptom(cur, symptom_name, disease_id=disease_id)
             if baseline and results:
                 print_symptom_results(symptom_name, baseline, results)
     elif args and not args[0].startswith("-"):
         # Specific symptom search
         pattern = args[0]
-        symptom_name, baseline, results = analyze_symptom(cur, pattern)
+        symptom_name, baseline, results = analyze_symptom(cur, pattern, disease_id=disease_id)
         if symptom_name:
             print_symptom_results(symptom_name, baseline, results)
         else:
@@ -442,7 +454,7 @@ if __name__ == "__main__":
     else:
         # Default: top 10 symptoms
         for pattern in TOP_SYMPTOMS:
-            symptom_name, baseline, results = analyze_symptom(cur, pattern)
+            symptom_name, baseline, results = analyze_symptom(cur, pattern, disease_id=disease_id)
             if symptom_name and results:
                 print_symptom_results(symptom_name, baseline, results, top_n=15)
 

@@ -2,6 +2,19 @@
 
 Local queryable database of CureID case reports (FDA/NCATS).
 
+## Configuration
+
+`config.json` sets the target disease for all build scripts:
+
+```json
+{
+  "disease_id": 1988,
+  "disease_name": "Long COVID"
+}
+```
+
+Change these values and rebuild to generate visualizations for a different CureID disease.
+
 ## Usage
 
 ```bash
