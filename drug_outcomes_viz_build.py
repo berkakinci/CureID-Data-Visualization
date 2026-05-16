@@ -129,12 +129,26 @@ def build_details(cur):
     print(f'drug_outcomes_viz_details.json: {total_drugs} drugs, {total_entries} cases ({size/1024:.0f} KB)')
 
 
+def build_html():
+    """Embed JSON data into the HTML template."""
+    from pathlib import Path
+    template = Path('drug_outcomes_viz_template.html').read_text()
+    data_json = Path('drug_outcomes_viz_data.json').read_text()
+    details_json = Path('drug_outcomes_viz_details.json').read_text()
+    inline = f'let DATA = {data_json};\nlet DETAILS = {details_json};'
+    html = template.replace('/*__DATA_PLACEHOLDER__*/', inline)
+    Path('drug_outcomes_viz.html').write_text(html)
+    size_kb = Path('drug_outcomes_viz.html').stat().st_size / 1024
+    print(f'drug_outcomes_viz.html: {size_kb:.0f} KB (embedded data)')
+
+
 def main():
     conn = sqlite3.connect('cureid.db')
     cur = conn.cursor()
     build_outcomes(cur)
     build_details(cur)
     conn.close()
+    build_html()
 
 if __name__ == '__main__':
     main()

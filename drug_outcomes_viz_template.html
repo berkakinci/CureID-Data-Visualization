@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CureID Long COVID — Drug Outcome Visualization</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 5px; color: #fff; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 20px; font-size: 14px; }
+  .controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .controls label { font-size: 13px; color: #aaa; }
+  .controls select, .controls input { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 5px 10px; border-radius: 4px; font-size: 13px; }
+  .controls input[type="range"] { width: 120px; }
+  .legend { display: flex; gap: 15px; justify-content: center; margin-bottom: 15px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 2px; }
+  #chart-container { width: 100%; overflow-x: auto; }
+  #chart { min-width: 900px; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 2px; cursor: pointer; }
+  .bar-row:hover .bar-label { color: #fff; }
+  .bar-label { width: 280px; min-width: 280px; text-align: right; padding-right: 10px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-stack { display: flex; height: 22px; flex: 1; position: relative; background: #2a2a3a; border-radius: 2px; overflow: hidden; }
+  .bar-stack:hover { opacity: 0.85; }
+  .bar-segment { height: 100%; transition: width 0.3s; }
+  .bar-count { position: absolute; right: -40px; font-size: 10px; color: #888; line-height: 22px; width: 36px; text-align: left; }
+  .tooltip { position: fixed; background: #2a2a4a; border: 1px solid #555; padding: 10px 14px; border-radius: 6px; font-size: 12px; pointer-events: none; display: none; z-index: 100; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  .tooltip .drug-name { font-weight: bold; margin-bottom: 6px; color: #fff; }
+  .tooltip .outcome-line { display: flex; justify-content: space-between; gap: 15px; margin: 2px 0; }
+  .tooltip .outcome-label { display: flex; align-items: center; gap: 5px; }
+  .tooltip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* Drill-down panel */
+  #detail-panel { display: none; position: fixed; top: 0; right: 0; width: 520px; height: 100vh; background: #1e1e3a; border-left: 2px solid #444; overflow-y: auto; z-index: 200; padding: 20px; box-shadow: -4px 0 20px rgba(0,0,0,0.5); }
+  #detail-panel.open { display: block; }
+  #detail-panel .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+  #detail-panel .panel-title { font-size: 16px; font-weight: bold; color: #fff; }
+  #detail-panel .close-btn { background: #444; border: none; color: #fff; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  #detail-panel .close-btn:hover { background: #666; }
+  #detail-panel .panel-subtitle { color: #888; font-size: 12px; margin-bottom: 15px; }
+  .case-card { background: #2a2a4a; border: 1px solid #3a3a5a; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+  .case-card:hover { border-color: #5a5a8a; }
+  .case-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .case-meta { font-size: 11px; color: #aaa; }
+  .case-meta span { margin-right: 10px; }
+  .case-link { font-size: 11px; color: #6ea8fe; text-decoration: none; }
+  .case-link:hover { text-decoration: underline; }
+  .case-symptoms { font-size: 11px; margin-top: 6px; }
+  .case-symptoms .sx-line { display: flex; gap: 6px; margin: 2px 0; }
+  .case-symptoms .sx-outcome { font-weight: 500; }
+  .sx-sig { color: #2ecc71; }
+  .sx-mod { color: #82c91e; }
+  .sx-mild { color: #f1c40f; }
+  .sx-unchanged { color: #7f8c8d; }
+  .sx-worse { color: #e74c3c; }
+  .sx-resolved { color: #2ecc71; font-weight: bold; }
+  .filter-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filter-row select { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+  .case-count { color: #888; font-size: 12px; margin-bottom: 10px; }
+  .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 150; }
+  .overlay.open { display: block; }
+</style>
+</head>
+<body>
+
+<h1>Long COVID Drug Outcomes</h1>
+<p class="subtitle">CureID patient-reported symptom outcomes by drug — click a bar for case details</p>
+
+<div class="controls">
+  <label>Sort by:
+    <select id="sort-select">
+      <option value="total">Total reports</option>
+      <option value="pct-positive">% Positive outcome</option>
+      <option value="pct-significant" selected>% Significant + Resolved</option>
+      <option value="pct-resolved">% Complete Resolution</option>
+      <option value="pct-worsened">% Worsened (ascending)</option>
+      <option value="alpha">Alphabetical</option>
+    </select>
+  </label>
+  <label>Min reports:
+    <input type="range" id="min-reports" min="5" max="50" value="10">
+    <span id="min-reports-val">10</span>
+  </label>
+  <label>
+    <input type="checkbox" id="show-pct" checked> Show as %
+  </label>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#2ecc71"></div>Resolved</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Significant</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#82c91e"></div>Moderate</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f1c40f"></div>Mild</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#7f8c8d"></div>Unchanged</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Worsened</div>
+</div>
+
+<div id="chart-container">
+  <div id="chart"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="overlay" id="overlay"></div>
+<div id="detail-panel">
+  <div class="panel-header">
+    <span class="panel-title" id="panel-title"></span>
+    <button class="close-btn" id="close-panel">✕</button>
+  </div>
+  <div class="panel-subtitle" id="panel-subtitle"></div>
+  <div class="filter-row">
+    <select id="panel-sort">
+      <option value="outcome-best">Best outcome first</option>
+      <option value="outcome-worst">Worst outcome first</option>
+      <option value="symptoms-most">Most symptoms</option>
+      <option value="duration-longest">Longest duration</option>
+    </select>
+  </div>
+  <div class="case-count" id="case-count"></div>
+  <div id="case-list"></div>
+</div>
+
+<script>
+// Data will be loaded from external JSON files
+/*__DATA_PLACEHOLDER__*/
+
+async function loadData() {
+  // DATA and DETAILS are embedded inline by drug_outcomes_viz_build.py
+  if (DATA.length) render();
+}
+
+const COLORS = {
+  resolved: '#2ecc71',
+  significant: '#27ae60',
+  moderate: '#82c91e',
+  mild: '#f1c40f',
+  unchanged: '#7f8c8d',
+  worsened: '#e74c3c'
+};
+
+const LABELS = {
+  resolved: 'Complete resolution',
+  significant: 'Significant improvement',
+  moderate: 'Moderate improvement',
+  mild: 'Mild improvement',
+  unchanged: 'Unchanged',
+  worsened: 'Worsened'
+};
+
+const OUTCOME_ORDER = {
+  'Cured': 0, 'Improved': 1, 'Undetermined': 2, 'Deteriorated': 3, 'Died': 4
+};
+
+function outcomeClass(o) {
+  if (!o) return '';
+  if (o.includes('resolved')) return 'sx-resolved';
+  if (o.includes('Sig')) return 'sx-sig';
+  if (o.includes('Mod')) return 'sx-mod';
+  if (o.includes('Mild')) return 'sx-mild';
+  if (o.includes('worse')) return 'sx-worse';
+  return 'sx-unchanged';
+}
+
+function durationMonths(d) {
+  if (!d) return 0;
+  if (d.includes('>48')) return 60;
+  if (d.includes('36-48')) return 42;
+  if (d.includes('24-36')) return 30;
+  if (d.includes('12-24')) return 18;
+  if (d.includes('6-12')) return 9;
+  if (d.includes('3-6')) return 4;
+  return 1;
+}
+
+function render() {
+  const sortBy = document.getElementById('sort-select').value;
+  const minReports = parseInt(document.getElementById('min-reports').value);
+  const showPct = document.getElementById('show-pct').checked;
+
+  let filtered = DATA.filter(d => d.total >= minReports);
+
+  switch(sortBy) {
+    case 'total': filtered.sort((a, b) => b.total - a.total); break;
+    case 'pct-positive':
+      filtered.sort((a, b) => (b.resolved+b.significant+b.moderate+b.mild)/b.total - (a.resolved+a.significant+a.moderate+a.mild)/a.total);
+      break;
+    case 'pct-significant':
+      filtered.sort((a, b) => (b.resolved+b.significant)/b.total - (a.resolved+a.significant)/a.total);
+      break;
+    case 'pct-resolved':
+      filtered.sort((a, b) => b.resolved/b.total - a.resolved/a.total);
+      break;
+    case 'pct-worsened':
+      filtered.sort((a, b) => a.worsened/a.total - b.worsened/b.total);
+      break;
+    case 'alpha': filtered.sort((a, b) => a.drug.localeCompare(b.drug)); break;
+  }
+
+  const chart = document.getElementById('chart');
+  let html = '';
+
+  filtered.forEach(d => {
+    const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
+    const trackedTotal = categories.reduce((sum, cat) => sum + d[cat], 0);
+    let segments = '';
+
+    categories.forEach(cat => {
+      const val = d[cat];
+      if (val === 0) return;
+      const width = val / trackedTotal * 100;
+      segments += `<div class="bar-segment" style="width:${width}%;background:${COLORS[cat]}"></div>`;
+    });
+
+    const pctPositive = Math.round((d.resolved + d.significant + d.moderate + d.mild) / trackedTotal * 100);
+    const pctSig = Math.round((d.resolved + d.significant) / trackedTotal * 100);
+    const pctResolved = Math.round(d.resolved / trackedTotal * 100);
+    const label = d.drug.length > 40 ? d.drug.substring(0, 38) + '…' : d.drug;
+    let countLabel;
+    if (!showPct) countLabel = `${d.total}`;
+    else if (sortBy === 'pct-significant') countLabel = `${pctSig}%`;
+    else if (sortBy === 'pct-resolved') countLabel = `${pctResolved}%`;
+    else countLabel = `${pctPositive}%`;
+
+    html += `<div class="bar-row" data-drug='${JSON.stringify(d).replace(/'/g, "&#39;")}' data-drugname="${d.drug.replace(/"/g, '&quot;')}">
+      <div class="bar-label" title="${d.drug}">${label}</div>
+      <div class="bar-stack">${segments}</div>
+      <div class="bar-count">${countLabel}</div>
+    </div>`;
+  });
+
+  chart.innerHTML = html;
+  attachEvents();
+}
+
+function attachEvents() {
+  const tooltip = document.getElementById('tooltip');
+  const chart = document.getElementById('chart');
+
+  chart.querySelectorAll('.bar-row').forEach(row => {
+    row.addEventListener('mouseenter', (e) => {
+      const d = JSON.parse(row.dataset.drug);
+      const pctPos = Math.round((d.resolved + d.significant + d.moderate + d.mild) / d.total * 100);
+      const pctSig = Math.round((d.resolved + d.significant) / d.total * 100);
+      let lines = `<div class="drug-name">${d.drug}</div>`;
+      lines += `<div style="margin-bottom:6px;color:#aaa">Total outcomes: ${d.total} | ${pctPos}% positive | ${pctSig}% sig+resolved</div>`;
+      const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
+      categories.forEach(cat => {
+        const val = d[cat];
+        const pct = Math.round(val / d.total * 100);
+        lines += `<div class="outcome-line"><span class="outcome-label"><span class="dot" style="background:${COLORS[cat]}"></span>${LABELS[cat]}</span><span>${val} (${pct}%)</span></div>`;
+      });
+      lines += `<div style="margin-top:8px;color:#6ea8fe;font-size:11px">Click for case details →</div>`;
+      tooltip.innerHTML = lines;
+      tooltip.style.display = 'block';
+    });
+    row.addEventListener('mousemove', (e) => {
+      tooltip.style.left = (e.clientX + 15) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    row.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    row.addEventListener('click', () => {
+      tooltip.style.display = 'none';
+      openPanel(row.dataset.drugname);
+    });
+  });
+}
+
+function openPanel(drugName) {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('overlay');
+  const cases = DETAILS[drugName] || [];
+
+  document.getElementById('panel-title').textContent = drugName;
+  document.getElementById('panel-subtitle').textContent = `${cases.length} case reports using this drug`;
+
+  panel.classList.add('open');
+  overlay.classList.add('open');
+
+  renderCases(drugName);
+}
+
+function renderCases(drugName) {
+  const cases = DETAILS[drugName] || [];
+  const sortMode = document.getElementById('panel-sort').value;
+
+  let sorted = [...cases];
+  switch(sortMode) {
+    case 'outcome-best':
+      sorted.sort((a, b) => (OUTCOME_ORDER[a.outcome] || 2) - (OUTCOME_ORDER[b.outcome] || 2));
+      break;
+    case 'outcome-worst':
+      sorted.sort((a, b) => (OUTCOME_ORDER[b.outcome] || 2) - (OUTCOME_ORDER[a.outcome] || 2));
+      break;
+    case 'symptoms-most':
+      sorted.sort((a, b) => (b.sx || []).length - (a.sx || []).length);
+      break;
+    case 'duration-longest':
+      sorted.sort((a, b) => durationMonths(b.duration) - durationMonths(a.duration));
+      break;
+  }
+
+  document.getElementById('case-count').textContent = `Showing ${sorted.length} cases`;
+
+  let html = '';
+  sorted.forEach(c => {
+    const url = `https://cure.ncats.io/explore/long-covid/cases/${c.id}`;
+    const meta = [
+      c.sex || '',
+      c.age || '',
+      c.country || '',
+      c.duration ? `sick ${c.duration}` : '',
+      c.author || ''
+    ].filter(Boolean).join(' · ');
+
+    let sxHtml = '';
+    if (c.sx && c.sx.length > 0) {
+      sxHtml = '<div class="case-symptoms"><strong>Attributed outcomes:</strong>';
+      c.sx.forEach(sx => {
+        const cls = outcomeClass(sx.o);
+        sxHtml += `<div class="sx-line"><span class="sx-outcome ${cls}">${sx.o}</span> <span style="color:#aaa">— ${sx.s}</span></div>`;
+      });
+      sxHtml += '</div>';
+    }
+
+    const outcomeBadge = c.outcome === 'Cured' ? '🟢' : c.outcome === 'Improved' ? '🔵' : c.outcome === 'Deteriorated' ? '🔴' : '⚪';
+
+    html += `<div class="case-card">
+      <div class="case-header">
+        <span class="case-meta">${outcomeBadge} ${meta}</span>
+        <a class="case-link" href="${url}" target="_blank" rel="noopener">View on CureID ↗</a>
+      </div>
+      ${sxHtml}
+    </div>`;
+  });
+
+  document.getElementById('case-list').innerHTML = html;
+}
+
+function closePanel() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+// Event listeners
+document.getElementById('close-panel').addEventListener('click', closePanel);
+document.getElementById('overlay').addEventListener('click', closePanel);
+document.getElementById('panel-sort').addEventListener('change', () => {
+  const drugName = document.getElementById('panel-title').textContent;
+  renderCases(drugName);
+});
+document.getElementById('sort-select').addEventListener('change', render);
+document.getElementById('min-reports').addEventListener('input', (e) => {
+  document.getElementById('min-reports-val').textContent = e.target.value;
+  render();
+});
+document.getElementById('show-pct').addEventListener('change', render);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+
+loadData();
+</script>
+</body>
+</html>
