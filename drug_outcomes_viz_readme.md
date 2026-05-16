@@ -27,8 +27,8 @@ This also regenerates the intermediate JSON files:
 ## Features
 
 - **Bar chart**: stacked horizontal bars, one per drug. Color = outcome grade.
-- **Controls**: sort (total, % any improvement, % significant improvement, % complete resolution, % worsened, alpha), min-report slider, absolute/% toggle.
-- **Hover tooltip**: outcome breakdown with counts and percentages.
+- **Controls**: sort (avg score per report, sum of scores, total outcomes, total reports, % any improvement, % significant improvement, % complete resolution, % worsened, alpha), min-report slider, absolute/% toggle.
+- **Hover tooltip**: outcome breakdown with counts, percentages, and average score.
 - **Legend tooltips**: hover color swatches for outcome category definitions.
 - **Info panel**: collapsible explanation of controls and metrics.
 - **Click drill-down**: slide-in panel listing all cases for that drug. Each case shows demographics, illness duration, author type, attributed symptom→outcome pairs, and a link to the CureID web page.
