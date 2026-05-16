@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CureID Long COVID — Drug Efficacy Visualizations</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 40px 20px; max-width: 700px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #fff; margin-bottom: 8px; }
+  .subtitle { color: #888; margin-bottom: 32px; }
+  a { color: #6ea8fe; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .viz-list { list-style: none; padding: 0; }
+  .viz-list li { margin-bottom: 20px; padding: 16px; background: #2a2a4a; border: 1px solid #3a3a5a; border-radius: 6px; }
+  .viz-list li:hover { border-color: #5a5a8a; }
+  .viz-title { font-size: 1.1rem; font-weight: 600; color: #fff; }
+  .viz-desc { font-size: 0.85rem; color: #aaa; margin-top: 4px; }
+  .source { margin-top: 40px; font-size: 0.8rem; color: #666; }
+</style>
+</head>
+<body>
+<h1>CureID Long COVID — Drug Efficacy Visualizations</h1>
+<p class="subtitle">Interactive visualizations of patient-reported treatment outcomes from 616 Long COVID case reports on the FDA/NCATS CureID platform.</p>
+
+<ul class="viz-list">
+  <li>
+    <a href="drug_heatmap_viz.html" class="viz-title">Symptom × Drug Efficacy Heatmap</a>
+    <p class="viz-desc">Drug performance vs. baseline, by symptom. 14 symptoms × 86 drugs. Color by co-occurrence lift, improvement rate, or attributed outcomes. Click any cell for case-level detail.</p>
+  </li>
+  <li>
+    <a href="drug_outcomes_viz.html" class="viz-title">Drug Outcomes (Patient-Reported)</a>
+    <p class="viz-desc">Stacked bar chart of per-drug outcomes as reported by patients. Sort by score, improvement rate, or volume. Click any bar to browse individual case reports.</p>
+  </li>
+</ul>
+
+<p class="source">Data source: <a href="https://cure.ncats.io/explore/long-covid">CureID Long COVID</a> (FDA/NCATS) · <a href="https://github.com/berkakinci/CureID-Data-Visualization">GitHub repo</a></p>
+</body>
+</html>
