@@ -29,10 +29,14 @@ svg { display: block; }
 #side-panel {
   width: 320px; min-width: 320px; max-height: calc(100vh - 100px); overflow-y: auto;
   background: #22223a; border: 1px solid #444; border-radius: 6px;
-  padding: 16px; font-size: 0.8rem; line-height: 1.6; display: none;
-  margin-left: 12px;
+  padding: 0; font-size: 0.8rem; line-height: 1.6; display: none;
+  margin-left: 12px; transition: width 0.2s ease;
 }
-#side-panel.open { display: block; }
+#side-panel.open { display: flex; }
+#side-panel.expanded { width: 680px; min-width: 680px; }
+.sp-main { padding: 16px; overflow-y: auto; width: 320px; min-width: 320px; flex-shrink: 0; }
+.sp-detail { display: none; width: 360px; min-width: 360px; overflow-y: auto; padding: 16px; border-left: 1px solid #444; }
+.sp-detail.open { display: block; }
 #side-panel .sp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
 #side-panel .sp-title { font-size: 0.95rem; font-weight: 600; color: #fff; }
 #side-panel .sp-close { background: none; border: none; color: #888; font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
@@ -51,6 +55,37 @@ svg { display: block; }
 #side-panel .sp-detail-label { color: #aaa; }
 #side-panel .sp-detail-val { color: #8cf; text-align: right; }
 #side-panel .sp-sep { border-top: 1px solid #444; margin: 8px 0; }
+
+.mini-bar { display: flex; height: 20px; border-radius: 3px; overflow: hidden; margin: 8px 0; cursor: pointer; }
+.mini-bar:hover { opacity: 0.85; }
+.mini-bar-seg { height: 100%; }
+.mini-bar-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.7rem; margin-bottom: 8px; }
+.mini-bar-legend-item { display: flex; align-items: center; gap: 4px; }
+.mini-bar-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+.n-link { color: #888; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+.n-link:hover { color: #8cf; }
+
+.case-card { background: #2a2a4a; border: 1px solid #3a3a5a; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 0.75rem; }
+.case-card:hover { border-color: #5a5a8a; }
+.case-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.case-demo { color: #aaa; }
+.case-outcome { font-weight: 600; }
+.case-outcome-resolved { color: #2ecc71; }
+.case-outcome-significant { color: #27ae60; }
+.case-outcome-moderate { color: #82c91e; }
+.case-outcome-mild { color: #f1c40f; }
+.case-outcome-unchanged { color: #7f8c8d; }
+.case-outcome-worsened { color: #e74c3c; }
+.case-drugs { color: #999; margin-top: 4px; font-size: 0.7rem; }
+.case-drugs b { color: #fc8; font-weight: 600; }
+.case-sx { margin-top: 4px; font-size: 0.7rem; color: #888; }
+.case-sx-line { display: flex; gap: 6px; }
+.case-link { font-size: 0.68rem; color: #6ea8fe; text-decoration: none; }
+.case-link:hover { text-decoration: underline; }
+.sp-back { background: none; border: 1px solid #555; color: #aaa; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; margin-bottom: 10px; }
+.sp-back:hover { color: #fff; border-color: #888; }
+.drill-sort { background: #2a2a4a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; }
 
 #tooltip {
   position: fixed; pointer-events: none; background: #2a2a4a; border: 1px solid #666;
@@ -122,7 +157,12 @@ svg { display: block; }
 <h4>Side panel (click)</h4>
 <p><b>Click a drug name</b> (column header) to see that drug's performance across all symptoms, ranked by the current metric, with total N and average.</p>
 <p><b>Click a symptom name</b> (row label) to see all drugs ranked for that symptom, plus the symptom's baseline rates.</p>
-<p><b>Click a cell</b> to see full detail: rankings (where this drug stands among all drugs for the symptom, and vice versa), all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.</p>
+<p><b>Click a cell</b> to see full detail: rankings (where this drug stands among all drugs for the symptom, and vice versa), outcome distribution bar, all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.</p>
+
+<h4>Drill-down to cases</h4>
+<p><b>Click any N= value</b> (dotted underline) or the outcome distribution bar to open the detail pane — a second column showing individual case reports for that drug × symptom pair. The panel expands to show both the stats (left) and cases (right) side by side.</p>
+<p>Each case card shows: demographics, symptom outcome (color-coded), full drug regimen (target drug highlighted), other symptom outcomes, and a link to the full report on CureID.</p>
+<p>Sort cases by: best outcome first, worst outcome first, fewest symptoms, or fewest drugs in regimen. "← Back" collapses the detail pane.</p>
 
 <h4>Color scale</h4>
 <p><b>Lift metrics</b> (all three): diverging red → yellow → green. The scale range is fixed across all lift metrics and N thresholds — the same color always means the same magnitude of lift, making views directly comparable.</p>
@@ -162,7 +202,7 @@ svg { display: block; }
   <div class="chart-side">
     <div id="chart-container"><svg id="chart"></svg></div>
   </div>
-  <div id="side-panel"></div>
+  <div id="side-panel"><div class="sp-main" id="sp-main"></div><div class="sp-detail" id="sp-detail"></div></div>
 </div>
 <div id="tooltip"></div>
 
@@ -435,14 +475,35 @@ function hideTooltip() {
 
 function openSidePanel(html) {
   const panel = document.getElementById('side-panel');
-  panel.innerHTML = html;
+  const main = document.getElementById('sp-main');
+  main.innerHTML = html;
   panel.classList.add('open');
+  // Close detail pane when main content changes
+  closeDetailPane();
 }
 
 function closeSidePanel() {
   const panel = document.getElementById('side-panel');
-  panel.classList.remove('open');
-  panel.innerHTML = '';
+  panel.classList.remove('open', 'expanded');
+  document.getElementById('sp-main').innerHTML = '';
+  document.getElementById('sp-detail').innerHTML = '';
+  document.getElementById('sp-detail').classList.remove('open');
+}
+
+function openDetailPane(html) {
+  const panel = document.getElementById('side-panel');
+  const detail = document.getElementById('sp-detail');
+  detail.innerHTML = html;
+  detail.classList.add('open');
+  panel.classList.add('expanded');
+}
+
+function closeDetailPane() {
+  const panel = document.getElementById('side-panel');
+  const detail = document.getElementById('sp-detail');
+  detail.classList.remove('open');
+  detail.innerHTML = '';
+  panel.classList.remove('expanded');
 }
 
 function spHeader(title, subtitle) {
@@ -464,7 +525,7 @@ function showDrugPanel(drug, cells) {
   html += `<div class="sp-section"><div class="sp-section-title">Symptoms (ranked by current metric)</div>`;
   drugCells.forEach(c => {
     const val = c[currentMetric];
-    html += `<div class="sp-row"><span class="sp-row-name">${c.symptom}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+    html += `<div class="sp-row"><span class="sp-row-name">${c.symptom}</span><span class="sp-row-n n-link" onclick="showReportList('${c.symptom}','${drug.replace(/'/g,"\\'")}','${drug.replace(/'/g,"\\'")} × ${c.symptom}')">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
   });
   html += `</div>`;
   openSidePanel(html);
@@ -484,7 +545,8 @@ function showSymptomPanel(symptom, cells) {
   html += `<div class="sp-section"><div class="sp-section-title">Drugs (ranked by current metric)</div>`;
   symCells.forEach(c => {
     const val = c[currentMetric];
-    html += `<div class="sp-row"><span class="sp-row-name">${c.drug}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+    const drugEsc = c.drug.replace(/'/g, "\\'");
+    html += `<div class="sp-row"><span class="sp-row-name">${c.drug}</span><span class="sp-row-n n-link" onclick="showReportList('${symptom}','${drugEsc}','${drugEsc} × ${symptom}')">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
   });
   html += `</div>`;
   openSidePanel(html);
@@ -509,6 +571,32 @@ function showCellPanel(cell, drug, symptom, cells) {
 
   let html = spHeader(drug, symptom);
 
+  // Mini outcome distribution bar
+  if (cell.dist) {
+    const d = cell.dist;
+    const total = d.resolved + d.significant + d.moderate + d.mild + d.unchanged + d.worsened;
+    if (total > 0) {
+      const colors = {resolved:'#2ecc71', significant:'#27ae60', moderate:'#82c91e', mild:'#f1c40f', unchanged:'#7f8c8d', worsened:'#e74c3c'};
+      const labels = {resolved:'Resolved', significant:'Significant', moderate:'Moderate', mild:'Mild', unchanged:'Unchanged', worsened:'Worsened'};
+      html += `<div class="sp-section"><div class="sp-section-title">Outcome distribution (<span class="n-link" onclick="showReportList('${symptom}','${drug.replace(/'/g,"\\'")}','${drug.replace(/'/g,"\\'")} × ${symptom}')">N=${total}</span>)</div>`;
+      html += `<div class="mini-bar" onclick="showReportList('${symptom}','${drug.replace(/'/g,"\\'")}','${drug.replace(/'/g,"\\'")} × ${symptom}')">`;
+      for (const key of ['resolved','significant','moderate','mild','unchanged','worsened']) {
+        const w = (d[key] / total * 100);
+        if (w > 0) {
+          html += `<div class="mini-bar-seg" style="width:${w}%;background:${colors[key]}" title="${labels[key]}: ${d[key]}"></div>`;
+        }
+      }
+      html += `</div>`;
+      html += `<div class="mini-bar-legend">`;
+      for (const key of ['resolved','significant','moderate','mild','unchanged','worsened']) {
+        if (d[key] > 0) {
+          html += `<span class="mini-bar-legend-item"><span class="mini-bar-legend-swatch" style="background:${colors[key]}"></span>${labels[key]}: ${d[key]}</span>`;
+        }
+      }
+      html += `</div></div>`;
+    }
+  }
+
   // Rankings
   html += `<div class="sp-section"><div class="sp-section-title">Rankings (current metric)</div>`;
   html += `<div class="sp-detail-grid">`;
@@ -517,7 +605,8 @@ function showCellPanel(cell, drug, symptom, cells) {
   html += `</div></div>`;
 
   // Co-occurrence stats
-  html += `<div class="sp-section"><div class="sp-section-title">Co-occurrence (N=${cell.cooccur_n})</div>`;
+  const drugEsc = drug.replace(/'/g, "\\'");
+  html += `<div class="sp-section"><div class="sp-section-title">Co-occurrence (<span class="n-link" onclick="showReportList('${symptom}','${drugEsc}','${drugEsc} × ${symptom}')">N=${cell.cooccur_n}</span>)</div>`;
   html += `<div class="sp-detail-grid">`;
   html += `<span class="sp-detail-label">Significant improvement rate</span><span class="sp-detail-val">${pct(cell.cooccur_sig_rate)}</span>`;
   html += `<span class="sp-detail-label">Significant improvement lift</span><span class="${liftClass(cell.cooccur_sig_lift)}">${liftPct(cell.cooccur_sig_lift)}</span>`;
@@ -527,7 +616,7 @@ function showCellPanel(cell, drug, symptom, cells) {
 
   // Attributed stats
   if (cell.attr_n) {
-    html += `<div class="sp-section"><div class="sp-section-title" style="color:#fc8;">Attributed (N=${cell.attr_n})</div>`;
+    html += `<div class="sp-section"><div class="sp-section-title" style="color:#fc8;">Attributed (<span class="n-link" onclick="showReportList('${symptom}','${drugEsc}','${drugEsc} × ${symptom} (attributed)')">N=${cell.attr_n}</span>)</div>`;
     html += `<div class="sp-detail-grid">`;
     html += `<span class="sp-detail-label">Significant improvement rate</span><span class="sp-detail-val">${pct(cell.attr_sig_rate)}</span>`;
     html += `<span class="sp-detail-label">Significant improvement lift</span><span class="${liftClass(cell.attr_sig_lift)}">${liftPct(cell.attr_sig_lift)}</span>`;
@@ -551,16 +640,120 @@ function showCellPanel(cell, drug, symptom, cells) {
   const isRate = currentMetric.includes('_rate');
   symCells.slice(0, 8).forEach(c => {
     const val = c[currentMetric];
+    const cDrugEsc = c.drug.replace(/'/g, "\\'");
     const highlight = c.drug === drug ? ' style="background:#3a3a6a; border-radius:3px; padding:2px 4px; margin:-2px -4px;"' : '';
-    html += `<div class="sp-row"${highlight}><span class="sp-row-name">${c.drug}</span><span class="sp-row-n">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
+    html += `<div class="sp-row"${highlight}><span class="sp-row-name">${c.drug}</span><span class="sp-row-n n-link" onclick="showReportList('${symptom}','${cDrugEsc}','${cDrugEsc} × ${symptom}')">N=${c.cooccur_n}</span><span class="${liftClass(val)}">${isRate ? pct(val) : liftPct(val)}</span></div>`;
   });
   if (drugRank > 8) {
     html += `<div class="sp-row" style="color:#666;">…</div>`;
-    html += `<div class="sp-row" style="background:#3a3a6a; border-radius:3px; padding:2px 4px; margin:-2px -4px;"><span class="sp-row-name">#${drugRank} ${drug}</span><span class="sp-row-n">N=${cell.cooccur_n}</span><span class="${liftClass(cell[currentMetric])}">${isRate ? pct(cell[currentMetric]) : liftPct(cell[currentMetric])}</span></div>`;
+    html += `<div class="sp-row" style="background:#3a3a6a; border-radius:3px; padding:2px 4px; margin:-2px -4px;"><span class="sp-row-name">#${drugRank} ${drug}</span><span class="sp-row-n n-link" onclick="showReportList('${symptom}','${drugEsc}','${drugEsc} × ${symptom}')">N=${cell.cooccur_n}</span><span class="${liftClass(cell[currentMetric])}">${isRate ? pct(cell[currentMetric]) : liftPct(cell[currentMetric])}</span></div>`;
   }
   html += `</div>`;
 
   openSidePanel(html);
+}
+
+// --- Drill-down: show case report list ---
+
+const OUTCOME_COLORS = {resolved:'#2ecc71', significant:'#27ae60', moderate:'#82c91e', mild:'#f1c40f', unchanged:'#7f8c8d', worsened:'#e74c3c'};
+const OUTCOME_LABELS = {resolved:'Resolved', significant:'Significant', moderate:'Moderate', mild:'Mild', unchanged:'Unchanged', worsened:'Worsened'};
+const CUREID_BASE = 'https://cure.ncats.io/explore/long-covid/case-reports/case-details/';
+
+function getReportsForCell(symptom, drug) {
+  const key = `${symptom}|${drug}`;
+  const indices = DATA.cellReports[key] || [];
+  return indices.map(i => DATA.reports[i]);
+}
+
+function showReportList(symptom, drug, title) {
+  const reports = getReportsForCell(symptom, drug);
+  if (!reports.length) return;
+
+  // Store current drill-down context for re-sorting
+  window._drillSymptom = symptom;
+  window._drillDrug = drug;
+  window._drillTitle = title;
+
+  renderReportList(symptom, drug, title, 'outcome-best');
+}
+
+function renderReportList(symptom, drug, title, sortMode) {
+  const reports = getReportsForCell(symptom, drug);
+  if (!reports.length) return;
+
+  // Find the outcome for the target symptom in each report
+  const reportsWithOutcome = reports.map(r => {
+    const sx = r.sx.find(s => s.s === symptom);
+    return { ...r, cellOutcome: sx ? sx.o : 'unchanged' };
+  });
+
+  // Sort
+  const order = ['resolved','significant','moderate','mild','unchanged','worsened'];
+  if (sortMode === 'outcome-best') {
+    reportsWithOutcome.sort((a, b) => order.indexOf(a.cellOutcome) - order.indexOf(b.cellOutcome));
+  } else if (sortMode === 'outcome-worst') {
+    reportsWithOutcome.sort((a, b) => order.indexOf(b.cellOutcome) - order.indexOf(a.cellOutcome));
+  } else if (sortMode === 'symptoms-fewest') {
+    reportsWithOutcome.sort((a, b) => a.sx.length - b.sx.length);
+  } else if (sortMode === 'drugs-fewest') {
+    reportsWithOutcome.sort((a, b) => a.drugs.length - b.drugs.length);
+  }
+
+  let html = `<button class="sp-back" onclick="closeDetailPane()">← Back</button>`;
+  html += `<div class="sp-header"><span class="sp-title" style="font-size:0.85rem;">${title}</span></div>`;
+  html += `<div class="sp-subtitle">${reports.length} reports</div>`;
+
+  // Sort control
+  html += `<div style="margin-bottom:10px;"><select class="drill-sort" onchange="renderReportList(window._drillSymptom, window._drillDrug, window._drillTitle, this.value)">`;
+  html += `<option value="outcome-best"${sortMode==='outcome-best'?' selected':''}>Best outcome first</option>`;
+  html += `<option value="outcome-worst"${sortMode==='outcome-worst'?' selected':''}>Worst outcome first</option>`;
+  html += `<option value="symptoms-fewest"${sortMode==='symptoms-fewest'?' selected':''}>Fewest symptoms</option>`;
+  html += `<option value="drugs-fewest"${sortMode==='drugs-fewest'?' selected':''}>Fewest drugs in regimen</option>`;
+  html += `</select></div>`;
+
+  // Mini bar at top
+  const dist = {};
+  reportsWithOutcome.forEach(r => { dist[r.cellOutcome] = (dist[r.cellOutcome] || 0) + 1; });
+  const total = reportsWithOutcome.length;
+  html += `<div class="mini-bar">`;
+  for (const key of order) {
+    const w = ((dist[key] || 0) / total * 100);
+    if (w > 0) html += `<div class="mini-bar-seg" style="width:${w}%;background:${OUTCOME_COLORS[key]}" title="${OUTCOME_LABELS[key]}: ${dist[key]}"></div>`;
+  }
+  html += `</div>`;
+
+  // Case cards
+  reportsWithOutcome.forEach(r => {
+    const outcomeClass = `case-outcome-${r.cellOutcome}`;
+    const outcomeLabel = OUTCOME_LABELS[r.cellOutcome] || r.cellOutcome;
+    html += `<div class="case-card">`;
+    html += `<div class="case-header"><span class="case-demo">${r.sex} · ${r.age} · ${r.country}</span><span class="case-outcome ${outcomeClass}">${outcomeLabel}</span></div>`;
+
+    // Highlight the target drug in the drug list
+    const drugList = r.drugs.map(d => {
+      const isTarget = d.n === drug;
+      const dose = d.d ? ` ${d.d}` : '';
+      return isTarget ? `<b>${d.n}${dose}</b>` : `${d.n}${dose}`;
+    }).join(', ');
+    if (drugList) html += `<div class="case-drugs">${drugList}</div>`;
+
+    // Other symptom outcomes (excluding the target)
+    const otherSx = r.sx.filter(s => s.s !== symptom);
+    if (otherSx.length) {
+      html += `<div class="case-sx">`;
+      otherSx.slice(0, 5).forEach(s => {
+        html += `<div class="case-sx-line"><span class="case-outcome-${s.o}">${OUTCOME_LABELS[s.o] || s.o}</span> <span>${s.s}</span></div>`;
+      });
+      if (otherSx.length > 5) html += `<div class="case-sx-line" style="color:#555;">+${otherSx.length - 5} more symptoms</div>`;
+      html += `</div>`;
+    }
+
+    // CureID link
+    html += `<a class="case-link" href="${CUREID_BASE}${r.id}" target="_blank" rel="noopener">View on CureID →</a>`;
+    html += `</div>`;
+  });
+
+  openDetailPane(html);
 }
 
 init();

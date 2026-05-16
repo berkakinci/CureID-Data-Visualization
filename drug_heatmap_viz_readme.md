@@ -27,7 +27,8 @@ python drug_heatmap_build.py
 - **Side panel (click)**:
   - Click a **drug name** (column header) → drug summary across all symptoms, ranked by current metric, with total N and average.
   - Click a **symptom name** (row label) → all drugs ranked for that symptom, plus symptom baseline rates.
-  - Click a **cell** → full detail: rankings (drug rank among all drugs for that symptom, symptom rank among all symptoms for that drug), all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.
+  - Click a **cell** → full detail: rankings, outcome distribution bar, all co-occurrence and attributed stats, symptom baseline, and a mini leaderboard of top drugs for that symptom.
+- **Drill-down to cases**: click any **N= value** (dotted underline) or the outcome distribution bar → detail pane opens as a second column showing individual case reports. Two-pane layout keeps stats visible on the left while browsing cases on the right. Case cards show demographics, outcome (color-coded), full drug regimen (target highlighted), other symptom outcomes, and CureID link. Sortable: best/worst outcome, fewest symptoms, fewest drugs.
 - **Info panel**: collapsible explanation of all metrics, controls, and interactions.
 - **Data freshness**: subtitle shows most recent report date and count, derived from DB at build time.
 
@@ -50,7 +51,7 @@ All drug names are normalized via `normalize_name()` from `normalize_drugs.py` �
 
 ## Architecture
 
-Single HTML file. D3 v7 loaded from CDN (requires internet connection). Data is embedded inline by the build script. Template uses placeholder comments that get replaced with JSON data and metadata during build.
+Single HTML file. D3 v7 loaded from CDN (requires internet connection). Data is embedded inline by the build script — includes aggregate cell metrics, outcome distributions, per-report case data (demographics, drugs, symptom outcomes), and cell-to-report mappings. Template uses placeholder comments that get replaced with JSON data and metadata during build. Typical output ~560 KB.
 
 ## Dependencies
 
