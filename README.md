@@ -40,16 +40,34 @@ See `findings.md` for the full write-up: demographics, top symptoms, drug effica
 
 ## Visualization
 
-Open `drug_outcomes_viz.html` in a browser. Stacked bar chart of drug→outcome data with sort options, min-report slider, hover tooltips, and click-to-drill-down into individual case reports (with links to CureID). See `drug_outcomes_viz_readme.md` for details. Regenerate data with `python drug_outcomes_viz_build.py`.
+Two interactive HTML visualizations (open directly in browser, no server needed):
 
-### Heatmap
-
-Open `drug_heatmap_viz.html` in a browser. Interactive D3 heatmap of symptom × drug efficacy (co-occurrence significant improvement lift vs. baseline). Controls for metric selection, min-N filtering, and drug sort order. Hover for full co-occurrence + attributed stats. Regenerate with `python drug_heatmap_build.py` (embeds data into HTML from template). Requires internet connection (D3 v7 loaded from CDN).
+- **`drug_outcomes_viz.html`** — Stacked bar chart of drug→outcome distributions with drill-down. See `drug_outcomes_viz_readme.md`.
+- **`drug_heatmap_viz.html`** — Symptom × drug efficacy heatmap (D3). See `drug_heatmap_viz_readme.md`.
 
 ## Data source
 
 API: `https://cure-api.ncats.io/v2` (no auth required).  
 Raw JSON cached in `raw_api_data/` — re-run `build_db.py` to rebuild after adding new data.
+
+## Updating data
+
+Check for new reports and fetch if available:
+
+```bash
+python fetch_cureid.py          # check remote vs local count
+python fetch_cureid.py --fetch  # download all reports into raw_api_data/
+```
+
+After fetching, rebuild everything:
+
+```bash
+python build_db.py                # rebuild cureid.db from raw JSON
+python drug_outcomes_viz_build.py  # rebuild drug_outcomes_viz.html (embeds data from DB)
+python drug_heatmap_build.py       # rebuild drug_heatmap_viz.html (embeds data from DB)
+```
+
+The HTML files embed all data inline (no server needed). The "Most recent report updated" date in each viz is derived from the DB automatically.
 
 ## Example queries
 

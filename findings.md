@@ -644,7 +644,7 @@ A drug is most convincing when it scores high on *both* Sig Lift (more significa
 
 **Drugs with high attributed counts but minimal/negative co-occurrence Sig Lift:**
 - **LDN** — -0% to -3% Sig Lift across all symptoms despite being in 60%+ of reports. Its high attributed improvement rate reflects the baseline improvement rate of the population taking it, not a drug-specific effect. However, it does show +11% Impr Lift for neuropathic pain.
-- **Propranolol** — negative Sig Lift for POTS (-9%), tachycardia (-12%), headache (-34%). Prescribed to harder cases; provides broad mild relief but rarely dramatic improvement.
+- **Propranolol** — negative Sig Lift for POTS (-9%), tachycardia (-12%), headache (-34%), and most other symptoms it appears in. Likely confounded by severity, but the breadth of negative signal (even for non-cardiac symptoms like PEM, fatigue, neuropathic pain) also suggests beta-blocker side effects (reduced exercise tolerance, fatigue) may actively hinder recovery. Contrast with ivabradine, which controls heart rate without these effects and shows positive lift.
 - **Ivabradine** — negative Impr Lift for POTS (-6%) and tachycardia (-11%) despite high attributed significance. Classic confounding by indication.
 
 **Key interpretive finding:** Sorting by Sig Lift (rather than Impr Lift as in the previous version) elevates antivirals and HBOT — interventions targeting root causes (viral persistence, tissue hypoxia) rather than symptom management. Mast cell drugs remain strong but their signal is more nuanced: they produce broad improvement (high Impr Lift) but not always dramatic improvement (moderate Sig Lift), except for cetirizine in neuropathic pain and ketotifen in insomnia/brain fog.
