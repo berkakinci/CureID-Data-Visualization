@@ -12,32 +12,86 @@ import os
 
 
 def build_outcomes(cur):
-    """Generate drug_outcomes.json — per-drug outcome counts."""
+    """Generate drug_outcomes.json — per-drug outcome counts + per-report scores."""
+    # Outcome score mapping
+    SCORE = {
+        'Complete symptom resolution': 3,
+        'Significant symptom improvement': 2,
+        'Moderate symptom improvement': 1,
+        'Mild symptom improvement': 0.5,
+        'Symptom was unchanged': 0,
+        'Mild symptom worsening': -0.5,
+        'Moderate symptom worsening': -1,
+        'Significant symptom worsening': -2,
+    }
+
+    # Get all attributed outcomes for Long COVID
     cur.execute('''
-        SELECT v.drug_name,
-            COUNT(*) as total,
-            COUNT(DISTINCT v.report_id) as reports,
-            SUM(CASE WHEN v.outcome = 'Complete symptom resolution' THEN 1 ELSE 0 END) as resolved,
-            SUM(CASE WHEN v.outcome = 'Significant symptom improvement' THEN 1 ELSE 0 END) as significant,
-            SUM(CASE WHEN v.outcome = 'Moderate symptom improvement' THEN 1 ELSE 0 END) as moderate,
-            SUM(CASE WHEN v.outcome = 'Mild symptom improvement' THEN 1 ELSE 0 END) as mild,
-            SUM(CASE WHEN v.outcome = 'Symptom was unchanged' THEN 1 ELSE 0 END) as unchanged,
-            SUM(CASE WHEN v.outcome LIKE '%worsening%' THEN 1 ELSE 0 END) as worsened
+        SELECT v.drug_name, v.report_id, v.outcome
         FROM v_drug_outcomes v
         JOIN reports r ON v.report_id = r.id
         WHERE r.disease_id = 1988
-        GROUP BY v.drug_name
-        HAVING total >= 5
-        ORDER BY total DESC
     ''')
+
+    from collections import defaultdict
+    # drug -> report_id -> list of scores
+    drug_report_scores = defaultdict(lambda: defaultdict(list))
+    # drug -> outcome category counts
+    drug_counts = defaultdict(lambda: {'total': 0, 'reports': set(),
+        'resolved': 0, 'significant': 0, 'moderate': 0,
+        'mild': 0, 'unchanged': 0, 'worsened': 0})
+
+    for drug_name, report_id, outcome in cur.fetchall():
+        d = drug_counts[drug_name]
+        d['total'] += 1
+        d['reports'].add(report_id)
+
+        if outcome == 'Complete symptom resolution':
+            d['resolved'] += 1
+        elif outcome == 'Significant symptom improvement':
+            d['significant'] += 1
+        elif outcome == 'Moderate symptom improvement':
+            d['moderate'] += 1
+        elif outcome == 'Mild symptom improvement':
+            d['mild'] += 1
+        elif outcome == 'Symptom was unchanged':
+            d['unchanged'] += 1
+        elif outcome and 'worsening' in outcome:
+            d['worsened'] += 1
+
+        score = SCORE.get(outcome)
+        if score is not None:
+            drug_report_scores[drug_name][report_id].append(score)
+
+    # Build output with per-report average scores
     data = []
-    for row in cur.fetchall():
+    for drug_name, counts in drug_counts.items():
+        if counts['total'] < 5:
+            continue
+        n_reports = len(counts['reports'])
+
+        # Compute per-report average scores
+        report_avgs = []
+        for report_id, scores in drug_report_scores[drug_name].items():
+            if scores:
+                report_avgs.append(sum(scores) / len(scores))
+
+        avg_score = sum(report_avgs) / len(report_avgs) if report_avgs else 0
+
         data.append({
-            'drug': row[0], 'total': row[1], 'reports': row[2],
-            'resolved': row[3], 'significant': row[4],
-            'moderate': row[5], 'mild': row[6],
-            'unchanged': row[7], 'worsened': row[8]
+            'drug': drug_name,
+            'total': counts['total'],
+            'reports': n_reports,
+            'avg_score': round(avg_score, 2),
+            'resolved': counts['resolved'],
+            'significant': counts['significant'],
+            'moderate': counts['moderate'],
+            'mild': counts['mild'],
+            'unchanged': counts['unchanged'],
+            'worsened': counts['worsened'],
         })
+
+    data.sort(key=lambda d: -d['total'])
     with open('drug_outcomes_viz_data.json', 'w') as f:
         json.dump(data, f, separators=(',', ':'))
     print(f'drug_outcomes_viz_data.json: {len(data)} drugs ({os.path.getsize("drug_outcomes_viz_data.json")/1024:.0f} KB)')

@@ -74,13 +74,15 @@
 </head>
 <body>
 
-<h1>Long COVID Drug Outcomes</h1>
-<p class="subtitle">CureID patient-reported symptom outcomes by drug — click a bar for case details<br><span style="font-size:12px; color:#666;">/*__META_PLACEHOLDER__*/</span></p>
+<h1>Long COVID Drug Outcomes (Patient-Attributed)</h1>
+<p class="subtitle">CureID Long COVID — patient-attributed symptom outcomes by drug — click a bar for case details<br><span style="font-size:12px; color:#666;">/*__META_PLACEHOLDER__*/</span></p>
 
 <details class="info-panel">
 <summary>ℹ️ How to read this chart</summary>
 <div class="info-content">
-<p><b>What it shows:</b> Each bar represents one drug. The stacked segments show the distribution of patient-reported symptom outcomes across all symptoms treated with that drug. Hover the legend swatches for outcome definitions.</p>
+<p><b>What it shows:</b> Each bar represents one drug. The stacked segments show the distribution of patient-<em>attributed</em> symptom outcomes — only outcomes where the patient explicitly credited this drug for the change. Hover the legend swatches for outcome definitions.</p>
+
+<p><b>Average score:</b> Each symptom outcome is scored (resolution=+3, significant=+2, moderate=+1, mild=+0.5, unchanged=0, worsening=-0.5 to -2). Per report, scores are averaged across attributed symptoms. The drug's avg score is the mean across all its reports — giving each patient equal weight regardless of how many symptoms they reported.</p>
 
 <h4>Controls</h4>
 <dl>
@@ -102,9 +104,11 @@
 <div class="controls">
   <label>Sort by:
     <select id="sort-select">
-      <option value="total">Total reports</option>
+      <option value="total">Total outcomes</option>
+      <option value="reports">Total reports</option>
+      <option value="avg-score" selected>Average score (per report)</option>
       <option value="pct-positive">% Any Improvement (mild through resolved)</option>
-      <option value="pct-significant" selected>% Significant Improvement</option>
+      <option value="pct-significant">% Significant Improvement</option>
       <option value="pct-resolved">% Complete Resolution</option>
       <option value="pct-worsened">% Worsened (ascending)</option>
       <option value="alpha">Alphabetical</option>
@@ -213,6 +217,8 @@ function render() {
 
   switch(sortBy) {
     case 'total': filtered.sort((a, b) => b.total - a.total); break;
+    case 'reports': filtered.sort((a, b) => b.reports - a.reports); break;
+    case 'avg-score': filtered.sort((a, b) => b.avg_score - a.avg_score); break;
     case 'pct-positive':
       filtered.sort((a, b) => {
         const tA = a.resolved+a.significant+a.moderate+a.mild+a.unchanged+a.worsened;
@@ -265,6 +271,8 @@ function render() {
     const label = d.drug.length > 40 ? d.drug.substring(0, 38) + '…' : d.drug;
     let countLabel;
     if (!showPct) countLabel = `${d.total}`;
+    else if (sortBy === 'avg-score') countLabel = `${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(1)}`;
+    else if (sortBy === 'reports') countLabel = `${d.reports}`;
     else if (sortBy === 'pct-significant') countLabel = `${pctSig}%`;
     else if (sortBy === 'pct-resolved') countLabel = `${pctResolved}%`;
     else countLabel = `${pctPositive}%`;
@@ -290,7 +298,8 @@ function attachEvents() {
       const pctPos = Math.round((d.resolved + d.significant + d.moderate + d.mild) / d.total * 100);
       const pctSig = Math.round((d.resolved + d.significant) / d.total * 100);
       let lines = `<div class="drug-name">${d.drug}</div>`;
-      lines += `<div style="margin-bottom:6px;color:#aaa">${d.total} outcomes from ${d.reports} report${d.reports === 1 ? '' : 's'} | ${pctPos}% positive | ${pctSig}% sig+resolved</div>`;
+      lines += `<div style="margin-bottom:4px;color:#aaa">${d.total} outcomes from ${d.reports} report${d.reports === 1 ? '' : 's'}</div>`;
+      lines += `<div style="margin-bottom:6px;color:#8cf">Avg score: ${d.avg_score > 0 ? '+' : ''}${d.avg_score.toFixed(2)} · ${pctPos}% positive · ${pctSig}% sig+resolved</div>`;
       const categories = ['resolved', 'significant', 'moderate', 'mild', 'unchanged', 'worsened'];
       categories.forEach(cat => {
         const val = d[cat];
@@ -351,7 +360,7 @@ function renderCases(drugName) {
 
   let html = '';
   sorted.forEach(c => {
-    const url = `https://cure.ncats.io/explore/long-covid/cases/${c.id}`;
+    const url = `https://cure.ncats.io/explore/long-covid/case-reports/case-details/${c.id}`;
     const meta = [
       c.sex || '',
       c.age || '',

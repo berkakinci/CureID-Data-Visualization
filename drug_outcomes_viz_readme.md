@@ -42,7 +42,7 @@ Single HTML file, no runtime dependencies. Data is embedded inline by the build 
 ## CureID Case Links
 
 ```
-https://cure.ncats.io/explore/long-covid/cases/{report_uuid}
+https://cure.ncats.io/explore/long-covid/case-reports/case-details/{report_uuid}
 ```
 
 ## Dependencies
