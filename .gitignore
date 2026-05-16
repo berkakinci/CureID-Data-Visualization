@@ -36,3 +36,4 @@ findings.html
 # Local data (not distributed — fetch with fetch_cureid.py, build with build_db.py)
 raw_api_data/
 cureid.db
+conversation_state.md
