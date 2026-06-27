@@ -276,7 +276,7 @@ def print_symptom_results(symptom_name, baseline, results, top_n=20):
 
 
 def markdown_symptom_results(symptom_name, baseline, results, top_n_co=15, top_n_attr=10):
-    """Return markdown-formatted results for one symptom."""
+    """Return markdown-formatted results for one symptom (single merged table)."""
     short = get_short_name(symptom_name)
     bl_rate = baseline["improved"] / baseline["total"] * 100 if baseline["total"] > 0 else 0
     bl_sig = baseline["sig_improved"] / baseline["total"] * 100 if baseline["total"] > 0 else 0
@@ -304,34 +304,26 @@ def markdown_symptom_results(symptom_name, baseline, results, top_n_co=15, top_n
         attr_sig_l = f"{r['attr_sig_lift']*100:+.0f}%" if r.get("attr_sig_lift") is not None else "—"
         return f"| {drug} | {co_n} | {sig} | {sig_lift} | {impr} | {impr_lift} | {attr_n} | {attr_sig} | {attr_sig_l} | {attr_impr} | {attr_impr_l} |"
 
-    # Table 1: sorted by co-occurrence Sig Lift
-    filtered = [r for r in results if r["cooccur_n"] >= 10]
+    # Merged table: union of (co-occur N >= 10) OR (attr N >= 5), sorted by Sig Lift
+    co_set = {r["drug"] for r in results if r["cooccur_n"] >= 10}
+    attr_set = {r["drug"] for r in results if r["attr_n"] >= 5}
+    union_drugs = co_set | attr_set
+    filtered = [r for r in results if r["drug"] in union_drugs]
     filtered.sort(key=lambda r: -r["cooccur_sig_lift"])
 
-    lines.append("**Co-occurrence lift leaders** (sorted by Sig Lift, min 10 co-occurring reports):")
+    # Cap at top_n_co + top_n_attr (generous limit for merged view)
+    max_rows = top_n_co + top_n_attr
+    display = filtered[:max_rows]
+
+    lines.append(f"**Drug efficacy** (sorted by Sig Lift; includes drugs with ≥10 co-occurring reports or ≥5 attributed entries):")
     lines.append("")
     lines.append(header)
     lines.append(sep)
     lines.append(f"| **BASELINE** | **{baseline['total']}** | **{bl_sig:.0f}%** | — | **{bl_rate:.0f}%** | — | **{baseline.get('attr_total', 0)}** | **{attr_bl_sig:.0f}%** | — | **{attr_bl_rate:.0f}%** | — |")
     lines.append("| | | | | | | | | | | |")
-    for r in filtered[:top_n_co]:
+    for r in display:
         lines.append(format_row(r))
     lines.append("")
-
-    # Table 2: sorted by Attr Sig Lift, min 5 attributed
-    attr_results = [r for r in results if r["attr_n"] >= 5]
-    attr_results.sort(key=lambda r: -(r.get("attr_sig_lift") or -999))
-
-    if attr_results:
-        lines.append("**Attributed significance leaders** (sorted by Attr Sig Lift, min 5 attributed):")
-        lines.append("")
-        lines.append(header)
-        lines.append(sep)
-        lines.append(f"| **BASELINE** | **{baseline['total']}** | **{bl_sig:.0f}%** | — | **{bl_rate:.0f}%** | — | **{baseline.get('attr_total', 0)}** | **{attr_bl_sig:.0f}%** | — | **{attr_bl_rate:.0f}%** | — |")
-        lines.append("| | | | | | | | | | | |")
-        for r in attr_results[:top_n_attr]:
-            lines.append(format_row(r))
-        lines.append("")
 
     return "\n".join(lines)
 
